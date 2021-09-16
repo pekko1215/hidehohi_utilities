@@ -1,0 +1,19 @@
+root = true
+
+[*.ts]
+charset = utf-8
+end_of_line = crlf
+indent_style = tab
+indent_size = 2
+
+[Dockerfile]
+charset = utf-8
+end_of_line = crlf
+indent_style = space
+indent_size = 2
+
+[*.yml]
+charset = utf-8
+end_of_line = crlf
+indent_style = space
+indent_size = 2
