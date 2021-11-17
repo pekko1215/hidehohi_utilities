@@ -23,7 +23,7 @@ const client = new Client({ intents: [Intents.FLAGS.GUILDS] });
 
 const CommandRegisters = [
 	TweetLinkRegister,
-	ShindanMakerRegister,
+	// ShindanMakerRegister,
 	ScratchRegister,
 	LightsOutRegister
 ];

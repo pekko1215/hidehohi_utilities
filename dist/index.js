@@ -7,7 +7,6 @@ const rest_1 = require("@discordjs/rest");
 const dotenv_1 = __importDefault(require("dotenv"));
 const tweet_link_1 = require("./commands/tweet_link");
 const discord_js_1 = require("discord.js");
-const shindan_maker_1 = require("./commands/shindan_maker");
 const scratch_1 = require("./commands/scratch");
 const lights_out_1 = require("./commands/lights_out");
 dotenv_1.default.config();
@@ -23,7 +22,7 @@ const rest = new rest_1.REST({
 const client = new discord_js_1.Client({ intents: [discord_js_1.Intents.FLAGS.GUILDS] });
 const CommandRegisters = [
     tweet_link_1.TweetLinkRegister,
-    shindan_maker_1.ShindanMakerRegister,
+    // ShindanMakerRegister,
     scratch_1.ScratchRegister,
     lights_out_1.LightsOutRegister
 ];
