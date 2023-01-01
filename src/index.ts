@@ -7,6 +7,7 @@ import { Client, Intents } from "discord.js";
 import { ShindanMakerRegister } from "./commands/shindan_maker";
 import { ScratchRegister } from "./commands/scratch";
 import { LightsOutRegister } from "./commands/lights_out";
+import { IaigiriRegister } from "./commands/iaigiri";
 
 DotEnv.config()
 const token = process.env.BOT_TOKEN;
@@ -25,7 +26,8 @@ const CommandRegisters = [
 	TweetLinkRegister,
 	// ShindanMakerRegister,
 	ScratchRegister,
-	LightsOutRegister
+	LightsOutRegister,
+	IaigiriRegister
 ];
 
 const Handlers: CommandHandler[] = [];

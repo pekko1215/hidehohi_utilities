@@ -7,6 +7,5 @@ services:
     build: ./
     volumes:
       - ./:/usr/src/app
-    command: >
-      bash -c "yarn &&
-      yarn start"
+    command: yarn start
+    restart: always

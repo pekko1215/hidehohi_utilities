@@ -9,6 +9,7 @@ const tweet_link_1 = require("./commands/tweet_link");
 const discord_js_1 = require("discord.js");
 const scratch_1 = require("./commands/scratch");
 const lights_out_1 = require("./commands/lights_out");
+const iaigiri_1 = require("./commands/iaigiri");
 dotenv_1.default.config();
 const token = process.env.BOT_TOKEN;
 const applicationId = process.env.APPLICATION_ID;
@@ -24,7 +25,8 @@ const CommandRegisters = [
     tweet_link_1.TweetLinkRegister,
     // ShindanMakerRegister,
     scratch_1.ScratchRegister,
-    lights_out_1.LightsOutRegister
+    lights_out_1.LightsOutRegister,
+    iaigiri_1.IaigiriRegister
 ];
 const Handlers = [];
 const botListen = () => {
