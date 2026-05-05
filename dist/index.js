@@ -10,6 +10,7 @@ const discord_js_1 = require("discord.js");
 const scratch_1 = require("./commands/scratch");
 const lights_out_1 = require("./commands/lights_out");
 const iaigiri_1 = require("./commands/iaigiri");
+const channel_points_1 = require("./commands/channel_points");
 dotenv_1.default.config();
 const token = process.env.BOT_TOKEN;
 const applicationId = process.env.APPLICATION_ID;
@@ -20,13 +21,21 @@ if (!applicationId)
 const rest = new rest_1.REST({
     version: "9"
 }).setToken(token);
-const client = new discord_js_1.Client({ intents: [discord_js_1.Intents.FLAGS.GUILDS] });
+const client = new discord_js_1.Client({
+    intents: [
+        discord_js_1.GatewayIntentBits.Guilds,
+        discord_js_1.GatewayIntentBits.GuildMessages,
+        discord_js_1.GatewayIntentBits.MessageContent,
+        discord_js_1.GatewayIntentBits.GuildVoiceStates
+    ]
+});
 const CommandRegisters = [
     tweet_link_1.TweetLinkRegister,
     // ShindanMakerRegister,
     scratch_1.ScratchRegister,
     lights_out_1.LightsOutRegister,
-    iaigiri_1.IaigiriRegister
+    iaigiri_1.IaigiriRegister,
+    channel_points_1.ChannelPointsRegister
 ];
 const Handlers = [];
 const botListen = () => {
@@ -35,6 +44,7 @@ const botListen = () => {
     });
     client.once('ready', () => {
         console.log('Ready!');
+        Handlers.forEach(hd => hd.onClient?.(client));
     });
     // Login to Discord with your client's token
     client.login(token);

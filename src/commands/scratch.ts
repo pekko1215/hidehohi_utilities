@@ -2,7 +2,8 @@ import { REST } from "@discordjs/rest";
 import { SlashCommandBuilder } from "@discordjs/builders"
 import { CommandRegister, CommandHandler } from "../typeings/command";
 import path from "path";
-import { InteractionReplyOptions, ActionRowBuilder, ButtonBuilder, ButtonStyle, Routes } from "discord.js";
+import { InteractionReplyOptions, ActionRowBuilder, ButtonBuilder, ButtonStyle, Routes, Client } from "discord.js";
+import { addPoints, getPoints } from "../utils/points";
 
 type NormalScratchSymbol = "🐈" | "🍅" | "🍖" | "💎" | "🍣" | "🎰"
 type AlmightyScratchSymbol = "🤡"
@@ -16,63 +17,67 @@ type Scratch = [
 const SymbolIdTable: ScratchSymbol[] = [
 	"🐈", "🍅", "🍖", "🍣", "💎", "🎰", "🤡"
 ]
-const SymbolLotTable: Record<string, {
-	lot: number;
-	symbol: ScratchSymbol
-}[]> = {
-	"normal": [
-		{ lot: 1 / 3, symbol: "🐈" },
-		{ lot: 1 / 3, symbol: "🍅" },
-		{ lot: 1 / 5, symbol: "🍖" },
-		{ lot: 1 / 5, symbol: "🍣" },
-		{ lot: 1 / 8, symbol: "💎" },
-		{ lot: 1 / 8, symbol: "🎰" },
+
+// 記号の重み設定 (設定1〜6)
+// 設定が高いほどレア役の確率が上がる
+const SettingLotTables: Record<number, { lot: number, symbol: ScratchSymbol }[]> = {
+	1: [ // 機械割 約96%
+		{ lot: 1 / 3, symbol: "🐈" }, { lot: 1 / 3, symbol: "🍅" },
+		{ lot: 1 / 6.5, symbol: "🍖" }, { lot: 1 / 6.5, symbol: "🍣" },
+		{ lot: 1 / 11, symbol: "💎" }, { lot: 1 / 11, symbol: "🎰" },
+		{ lot: 1 / 25, symbol: "🤡" }
+	],
+	2: [ // 機械割 約110%
+		{ lot: 1 / 3, symbol: "🐈" }, { lot: 1 / 3, symbol: "🍅" },
+		{ lot: 1 / 5.5, symbol: "🍖" }, { lot: 1 / 5.5, symbol: "🍣" },
+		{ lot: 1 / 9.5, symbol: "💎" }, { lot: 1 / 9.5, symbol: "🎰" },
+		{ lot: 1 / 18, symbol: "🤡" }
+	],
+	3: [ // 機械割 約120%
+		{ lot: 1 / 3, symbol: "🐈" }, { lot: 1 / 3, symbol: "🍅" },
+		{ lot: 1 / 5.2, symbol: "🍖" }, { lot: 1 / 5.2, symbol: "🍣" },
+		{ lot: 1 / 9, symbol: "💎" }, { lot: 1 / 9, symbol: "🎰" },
+		{ lot: 1 / 16, symbol: "🤡" }
+	],
+	4: [ // 機械割 約130%
+		{ lot: 1 / 3, symbol: "🐈" }, { lot: 1 / 3, symbol: "🍅" },
+		{ lot: 1 / 5, symbol: "🍖" }, { lot: 1 / 5, symbol: "🍣" },
+		{ lot: 1 / 8.5, symbol: "💎" }, { lot: 1 / 8.5, symbol: "🎰" },
+		{ lot: 1 / 14, symbol: "🤡" }
+	],
+	5: [ // 機械割 約140%
+		{ lot: 1 / 3, symbol: "🐈" }, { lot: 1 / 3, symbol: "🍅" },
+		{ lot: 1 / 4.8, symbol: "🍖" }, { lot: 1 / 4.8, symbol: "🍣" },
+		{ lot: 1 / 8, symbol: "💎" }, { lot: 1 / 8, symbol: "🎰" },
 		{ lot: 1 / 12, symbol: "🤡" }
+	],
+	6: [ // 機械割 約150% (エクストラ設定)
+		{ lot: 1 / 3, symbol: "🐈" }, { lot: 1 / 3, symbol: "🍅" },
+		{ lot: 1 / 4.5, symbol: "🍖" }, { lot: 1 / 4.5, symbol: "🍣" },
+		{ lot: 1 / 7, symbol: "💎" }, { lot: 1 / 7, symbol: "🎰" },
+		{ lot: 1 / 10, symbol: "🤡" }
 	]
 }
 
 const SymbolHitPointTable: { [key in ScratchSymbol]: number } = {
-	"🍅": 500,
-	"🐈": 800,
-	"🍖": 1000,
-	"🍣": 1500,
-	"💎": 3000,
-	"🎰": 5000,
-	"🤡": 10000
+	"🍅": 100,
+	"🐈": 150,
+	"🍖": 200,
+	"🍣": 300,
+	"💎": 600,
+	"🎰": 1000,
+	"🤡": 2000
 }
 
 const ScratchLines = [
-	[[1, 1, 1],
-	[0, 0, 0],
-	[0, 0, 0]],
-
-	[[0, 0, 0],
-	[1, 1, 1],
-	[0, 0, 0]],
-
-	[[0, 0, 0],
-	[0, 0, 0],
-	[1, 1, 1]],
-
-	[[0, 0, 1],
-	[0, 1, 0],
-	[1, 0, 0]],
-
-	[[1, 0, 0],
-	[1, 0, 0],
-	[1, 0, 0]],
-
-	[[0, 1, 0],
-	[0, 1, 0],
-	[0, 1, 0]],
-
-	[[0, 0, 1],
-	[0, 0, 1],
-	[0, 0, 1]],
-
-	[[1, 0, 0],
-	[0, 1, 0],
-	[0, 0, 1]],
+	[[1, 1, 1], [0, 0, 0], [0, 0, 0]],
+	[[0, 0, 0], [1, 1, 1], [0, 0, 0]],
+	[[0, 0, 0], [0, 0, 0], [1, 1, 1]],
+	[[0, 0, 1], [0, 1, 0], [1, 0, 0]],
+	[[1, 0, 0], [1, 0, 0], [1, 0, 0]],
+	[[0, 1, 0], [0, 1, 0], [0, 1, 0]],
+	[[0, 0, 1], [0, 0, 1], [0, 0, 1]],
+	[[1, 0, 0], [0, 1, 0], [0, 0, 1]],
 ]
 
 interface ScratchResultLine {
@@ -81,7 +86,8 @@ interface ScratchResultLine {
 	symbol: ScratchSymbol;
 }
 
-function createScratch(scratchTable: { lot: number, symbol: ScratchSymbol }[]): Scratch {
+function createScratch(setting: number): Scratch {
+	const scratchTable = SettingLotTables[setting];
 	const sum = scratchTable.reduce((a, b) => a + b.lot, 0);
 	const gen = () => {
 		let r = sum * Math.random();
@@ -98,14 +104,14 @@ function createScratch(scratchTable: { lot: number, symbol: ScratchSymbol }[]): 
 	]
 }
 
-function createScratchMessage(symbolIdList: number[], openSymbolIdList: number[]): InteractionReplyOptions {
+function createScratchMessage(symbolIdList: number[], openSymbolIdList: number[], bet: number, userId: string, setting: number): InteractionReplyOptions {
 	const rows: ActionRowBuilder<ButtonBuilder>[] = []
 	const scratch: [
 		Partial<Scratch[0]>,
 		Partial<Scratch[1]>,
 		Partial<Scratch[2]>
 	] = [[], [], []];
-	let scratchMessage = "ねこちゃんズスクラッチくじ";
+	let scratchMessage = `ねこちゃんズスクラッチくじ (掛金: ${bet}Pt)`;
 	for (let y = 0; y < 3; y++) {
 		const row = new ActionRowBuilder<ButtonBuilder>()
 		rows.push(row);
@@ -118,7 +124,7 @@ function createScratchMessage(symbolIdList: number[], openSymbolIdList: number[]
 			scratch[y][x] = symbol;
 
 			row.addComponents(new ButtonBuilder()
-				.setCustomId("scratch-" + symbolIdList.join("") + "-" + openSymbolIdList.join("") + idx)
+				.setCustomId(`scratch-${bet}-${symbolIdList.join("")}-${openSymbolIdList.join("")}${idx}-${setting}`)
 				.setStyle(isOpen ? symbol === "🤡" ? ButtonStyle.Danger : ButtonStyle.Secondary : ButtonStyle.Primary)
 				.setDisabled(isOpen)
 				.setEmoji(isOpen ? symbol : "⬜"));
@@ -133,12 +139,16 @@ function createScratchMessage(symbolIdList: number[], openSymbolIdList: number[]
 			scratchMessage += `はずれ Boo😩`
 		} else {
 			scratchMessage += `あたり！🎉\n`;
-			let resultPoint = 0;
+			let totalScore = 0;
 			let mergeLine = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
 			hitList.forEach(hit => {
-				let pt = SymbolHitPointTable[hit.symbol];
-				scratchMessage += `${hit.symbol}   (${hit.lineResult.join("―")})   =>   ${pt}Pt\n`
-				resultPoint += pt;
+				let score = SymbolHitPointTable[hit.symbol];
+				if (bet === 0) {
+					scratchMessage += `${hit.symbol}   (${hit.lineResult.join("―")})   =>   ${score}Pt\n`
+				} else {
+					scratchMessage += `${hit.symbol}   (${hit.lineResult.join("―")})   =>   x${score / 100}\n`
+				}
+				totalScore += score;
 				mergeLine = mergeLine.map((a, y) => {
 					return a.map((v1, x) => v1 || hit.line[y][x])
 				})
@@ -148,8 +158,16 @@ function createScratchMessage(symbolIdList: number[], openSymbolIdList: number[]
 					rows[y].components[x].setStyle(f ? ButtonStyle.Success : ButtonStyle.Secondary)
 				})
 			})
-			scratchMessage += `\n合計: ${resultPoint}Pt`
+			if (bet === 0) {
+				scratchMessage += `\n合計: ${totalScore}Pt`
+			} else {
+				const resultPoint = Math.floor(totalScore * (bet / 100));
+				scratchMessage += `\n合計: ${resultPoint}Pt (${bet}Pt x ${totalScore / 100}倍)`
+			}
 		}
+		const userPoints = getPoints(userId);
+		scratchMessage += `\n所持ポイント: ${userPoints}Pt`;
+
 		return {
 			components: rows,
 			content: scratchMessage,
@@ -183,11 +201,26 @@ function HitCheck(scratch: Scratch) {
 	return checkResults.filter(v => v !== null) as ScratchResultLine[]
 }
 
+function isHotDay() {
+	const now = new Date();
+	const day = now.getDate();
+	const month = now.getMonth() + 1;
+	// 6の日 (6, 16, 26) または ゾロ目 (11, 22, または月=日)
+	return day % 10 === 6 || day % 11 === 0 || day === month;
+}
+
+let lastNotificationDate = "";
 
 export const ScratchRegister: CommandRegister = async (rest: REST, applicationId: string): Promise<CommandHandler> => {
 	const command = new SlashCommandBuilder()
 		.setName(path.basename(__filename).split(".")[0])
 		.setDescription("スクラッチくじを作成します。")
+		.addIntegerOption(option =>
+			option.setName("bet")
+				.setDescription("賭けるポイントを指定します (100ptで等倍)")
+				.setRequired(false)
+				.setMinValue(0)
+		)
 
 	await rest.post(Routes.applicationCommands(applicationId), { body: command })
 
@@ -198,29 +231,103 @@ export const ScratchRegister: CommandRegister = async (rest: REST, applicationId
 		async onHandler(it) {
 			if (it.isCommand()) {
 				if (it.commandName !== command.name) return;
+				if (!it.isChatInputCommand()) return;
+
+				const bet = it.options.getInteger("bet") || 0;
+				const userPoints = getPoints(it.user.id);
+
+				if (bet > userPoints) {
+					await it.reply({ content: `ポイントが足りません！ (現在の所持ポイント: ${userPoints}Pt)`, ephemeral: true });
+					return;
+				}
+
+				if (bet > 0) {
+					addPoints(it.user.id, -bet);
+				}
+
+				const hot = isHotDay();
+				const rand = Math.random() * 100;
+				let setting = 1;
+
+				if (hot) {
+					// 熱い日: 設定6が60%
+					if (rand < 60) setting = 6;
+					else if (rand < 75) setting = 1;
+					else if (rand < 85) setting = 2;
+					else if (rand < 93) setting = 3;
+					else if (rand < 98) setting = 4;
+					else setting = 5;
+				} else {
+					// 通常日: 設定1が30%
+					if (rand < 30) setting = 1;
+					else if (rand < 55) setting = 2;
+					else if (rand < 70) setting = 3;
+					else if (rand < 80) setting = 4;
+					else if (rand < 95) setting = 5;
+					else setting = 6;
+				}
+
 				await it.deferReply();
-				const scratch = createScratch(SymbolLotTable.normal)
-				await it.followUp(createScratchMessage(scratch.flat().map(s => SymbolIdTable.findIndex(v => v === s)), []))
+				const scratch = createScratch(setting)
+				await it.followUp(createScratchMessage(scratch.flat().map(s => SymbolIdTable.findIndex(v => v === s)), [], bet, it.user.id, setting))
 			}
 
 			if (it.isButton()) {
-				const match = it.customId.match(/^scratch-(\d+)-(\d+)$/)
+				const match = it.customId.match(/^scratch-(\d+)-(\d+)-(\d+)-(\d+)$/)
 				if (!match) return;
-				const [_, scratchIdStr, opendIdStr] = match;
+				const [_, betStr, scratchIdStr, opendIdStr, settingStr] = match;
+				const bet = parseInt(betStr);
 				const scratchIdList = [...scratchIdStr].map(s => parseInt(s));
 				const openIdList = [...opendIdStr].map(s => parseInt(s));
-				const openedSymbol = SymbolIdTable[scratchIdList[openIdList[openIdList.length - 1]]];
-				const scratchMessage = createScratchMessage(scratchIdList, openIdList);
+				const setting = parseInt(settingStr);
+				
+				// If all opened, award points
+				if (scratchIdList.length === openIdList.length && bet > 0) {
+					const scratch: Scratch = [] as any;
+					for (let i = 0; i < 3; i++) {
+						scratch.push(scratchIdList.slice(i * 3, i * 3 + 3).map(id => SymbolIdTable[id]) as any);
+					}
+					const hitList = HitCheck(scratch);
+					let resultScore = 0;
+					hitList.forEach(hit => {
+						resultScore += SymbolHitPointTable[hit.symbol];
+					});
+					const winnings = Math.floor(resultScore * (bet / 100));
+					if (winnings > 0) {
+						addPoints(it.user.id, winnings);
+					}
+				}
+
+				const scratchMessage = createScratchMessage(scratchIdList, openIdList, bet, it.user.id, setting);
+
 				await rest.post(Routes.interactionCallback(it.id, it.token), {
 					body: {
 						type: 7,
 						data: scratchMessage
 					}
 				})
-				// await rest.patch(Routes.channelMessage(it.channelId!, it.message.id), {
-				//     body: scratchMessage
-				// })
 			}
+		},
+		onClient(client) {
+			setInterval(async () => {
+				const now = new Date();
+				const dateStr = now.toLocaleDateString("ja-JP");
+				if (lastNotificationDate !== dateStr) {
+					lastNotificationDate = dateStr;
+					try {
+						const user = await client.users.fetch("325529321483534337");
+						if (user) {
+							const hot = isHotDay();
+							const message = hot 
+								? `【スクラッチ告知】本日は 6の日 or ゾロ目 のため、設定6の投入率が 60% にアップしています！`
+								: `【スクラッチ告知】本日は通常営業です。設定1の確率は約30%となっています。`;
+							await user.send(message);
+						}
+					} catch (e) {
+						console.error("Failed to send daily notification:", e);
+					}
+				}
+			}, 1000 * 60 * 60); // 1時間ごとにチェック
 		}
 	}
 }
