@@ -1,11 +1,8 @@
 import { REST } from "@discordjs/rest";
-import { Routes } from "discord-api-types/v9";
 import { SlashCommandBuilder } from "@discordjs/builders"
 import { CommandRegister, CommandHandler } from "../typeings/command";
 import path from "path";
-import { MessageActionRow, MessageButton, MessagePayload, WebhookEditMessageOptions } from "discord.js";
-
-
+import { InteractionReplyOptions, ActionRowBuilder, ButtonBuilder, ButtonStyle, Routes } from "discord.js";
 
 type NormalScratchSymbol = "🐈" | "🍅" | "🍖" | "💎" | "🍣" | "🎰"
 type AlmightyScratchSymbol = "🤡"
@@ -101,16 +98,16 @@ function createScratch(scratchTable: { lot: number, symbol: ScratchSymbol }[]): 
 	]
 }
 
-function createScratchMessage(symbolIdList: number[], openSymbolIdList: number[]): WebhookEditMessageOptions {
-	const rows: MessageActionRow[] = []
+function createScratchMessage(symbolIdList: number[], openSymbolIdList: number[]): InteractionReplyOptions {
+	const rows: ActionRowBuilder<ButtonBuilder>[] = []
 	const scratch: [
 		Partial<Scratch[0]>,
 		Partial<Scratch[1]>,
 		Partial<Scratch[2]>
 	] = [[], [], []];
-	let scratchMessage = "スクラッチくじ";
+	let scratchMessage = "ねこちゃんズスクラッチくじ";
 	for (let y = 0; y < 3; y++) {
-		const row = new MessageActionRow()
+		const row = new ActionRowBuilder<ButtonBuilder>()
 		rows.push(row);
 		for (let x = 0; x < 3; x++) {
 			let idx = 3 * y + x
@@ -120,9 +117,9 @@ function createScratchMessage(symbolIdList: number[], openSymbolIdList: number[]
 
 			scratch[y][x] = symbol;
 
-			row.addComponents(new MessageButton()
+			row.addComponents(new ButtonBuilder()
 				.setCustomId("scratch-" + symbolIdList.join("") + "-" + openSymbolIdList.join("") + idx)
-				.setStyle(isOpen ? symbol === "🤡" ? "DANGER" : "SECONDARY" : "PRIMARY")
+				.setStyle(isOpen ? symbol === "🤡" ? ButtonStyle.Danger : ButtonStyle.Secondary : ButtonStyle.Primary)
 				.setDisabled(isOpen)
 				.setEmoji(isOpen ? symbol : "⬜"));
 		}
@@ -148,7 +145,7 @@ function createScratchMessage(symbolIdList: number[], openSymbolIdList: number[]
 			})
 			mergeLine.forEach((line, y) => {
 				line.forEach((f, x) => {
-					(rows[y].components[x] as MessageButton).setStyle(f ? "SUCCESS" : "SECONDARY")
+					rows[y].components[x].setStyle(f ? ButtonStyle.Success : ButtonStyle.Secondary)
 				})
 			})
 			scratchMessage += `\n合計: ${resultPoint}Pt`

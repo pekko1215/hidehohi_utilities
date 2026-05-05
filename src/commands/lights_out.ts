@@ -1,9 +1,8 @@
 import { REST } from "@discordjs/rest";
-import { Routes } from "discord-api-types/v9";
 import { SlashCommandBuilder } from "@discordjs/builders"
 import { CommandRegister, CommandHandler } from "../typeings/command";
 import path from "path";
-import { MessageActionRow, MessageButton, MessagePayload, WebhookEditMessageOptions } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, InteractionReplyOptions, Routes } from "discord.js";
 
 const PanelSize = 5;
 
@@ -70,16 +69,16 @@ function flipPanel(panel: Panel, pos: number) {
 	})
 }
 
-function createLightsOutMessage(panel: Panel): WebhookEditMessageOptions {
-	let rows: MessageActionRow[] = [];
+function createLightsOutMessage(panel: Panel): InteractionReplyOptions {
+	let rows: ActionRowBuilder<ButtonBuilder>[] = [];
 	let panelNumber = encodePanelNumber(panel);
 	let idx = 0;
 	panel.forEach((list) => {
-		let row = new MessageActionRow();
+		let row = new ActionRowBuilder<ButtonBuilder>();
 		list.forEach(b => {
-			row.addComponents(new MessageButton()
+			row.addComponents(new ButtonBuilder()
 				.setCustomId(`lights-${panelNumber}-${idx}`)
-				.setStyle(b ? "SUCCESS" : "SECONDARY")
+				.setStyle(b ? ButtonStyle.Success : ButtonStyle.Secondary)
 				.setEmoji(b ? "🟩" : "⬛"))
 			idx++;
 		})
@@ -104,6 +103,7 @@ export const LightsOutRegister: CommandRegister = async (rest: REST, application
 		async onHandler(it) {
 			if (it.isCommand()) {
 				if (it.commandName !== command.name) return;
+				if (!it.isChatInputCommand()) return;
 				await it.deferReply();
 				const panel = createPanel();
 				await it.followUp(createLightsOutMessage(panel));

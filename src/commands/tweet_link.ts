@@ -1,9 +1,7 @@
 import { REST } from "@discordjs/rest";
-import { Routes } from "discord-api-types/v9";
-import { ApplicationCommandData, Message, MessageType, } from "discord.js";
+import { ApplicationCommandData, Message, MessageType, Routes, } from "discord.js";
 import { CommandRegister, CommandHandler } from "../typeings/command";
 import path from "path";
-import { RawMessageData } from "discord.js/typings/rawDataTypes";
 
 export const TweetLinkRegister: CommandRegister = async (rest: REST, applicationId: string): Promise<CommandHandler> => {
 	const commandData: ApplicationCommandData = {
@@ -16,9 +14,9 @@ export const TweetLinkRegister: CommandRegister = async (rest: REST, application
 		description: "Twitterへのリンクを生成します。",
 		name: commandData.name,
 		async onHandler(it) {
-			if (!it.isContextMenu()) return;
+			if (!it.isContextMenuCommand()) return;
 			if (it.commandName !== commandData.name) return;
-			const message = await rest.get(Routes.channelMessage(it.channelId, it.targetId)) as RawMessageData;
+			const message = await rest.get(Routes.channelMessage(it.channelId, it.targetId)) as Message;
 
 			const messageUrl = `https://discord.com/channels/${it.guildId}/${it.channelId}/${it.targetId}`
 			const { content, author } = message;

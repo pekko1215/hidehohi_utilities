@@ -1,10 +1,9 @@
 import { REST } from "@discordjs/rest";
-import { Routes } from "discord-api-types/v9";
 import { SlashCommandBuilder } from "@discordjs/builders"
 import { CommandRegister, CommandHandler } from "../typeings/command";
 import path from "path";
 import puppeteer from "puppeteer";
-import { MessageActionRow, MessageButton } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Routes } from "discord.js";
 
 interface ShindanResult {
 	title: string;
@@ -34,7 +33,7 @@ export const ShindanMakerRegister: CommandRegister = async (rest: REST, applicat
 		const page = await browser.newPage();
 		await page.goto(`https://shindanmaker.com/${id}`);
 		await page.$eval("#shindanInput", element => {
-			element.value = ""
+			(element as HTMLInputElement).value = ""
 		});
 		await page.type("#shindanInput", name);
 		await page.click("#shindanButtonSubmit", {});
@@ -56,17 +55,18 @@ export const ShindanMakerRegister: CommandRegister = async (rest: REST, applicat
 		async onHandler(it) {
 			if (it.isCommand()) {
 				if (it.commandName !== command.name) return;
+				if (!it.isChatInputCommand()) return;
 				const isRandom = it.options.getBoolean("random")
 				const url = it.options.getString("url")!;
 				const shindanId = url.match(/^https:\/\/shindanmaker.com\/(\d+)/)?.[1];
 				if (!shindanId) return;
 				await it.reply("処理中です...");
-				const { title, result } = await (await ShindanGetter(shindanId));
-				const row = new MessageActionRow()
+				const { title, result } = await ShindanGetter(shindanId);
+				const row = new ActionRowBuilder<ButtonBuilder>()
 					.addComponents(
-						new MessageButton()
+						new ButtonBuilder()
 							.setCustomId("shindan-" + shindanId + "-" + !!isRandom)
-							.setStyle("SUCCESS")
+							.setStyle(ButtonStyle.Success)
 							.setLabel("診断する！")
 							.setEmoji("📋")
 					)
@@ -83,7 +83,7 @@ export const ShindanMakerRegister: CommandRegister = async (rest: REST, applicat
 				const isRandom = match[2] === "true";
 				const name = isRandom ? it.user.toString() + Math.floor(Math.random() * 0xffffff) : it.user.toString();
 				await it.reply("診断中です...")
-				const { title, result } = await (await ShindanGetter(shindanId, name));
+				const { title, result } = await ShindanGetter(shindanId, name);
 				it.editReply({
 					content: result
 				})

@@ -1,18 +1,17 @@
 import { REST } from "@discordjs/rest";
-import { APIMessage, Routes } from "discord-api-types/v9";
 import { SlashCommandBuilder } from "@discordjs/builders"
 import { CommandRegister, CommandHandler } from "../typeings/command";
 import path from "path";
-import { MessageActionRow, MessageButton, MessagePayload, WebhookEditMessageOptions } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, InteractionReplyOptions, Routes } from "discord.js";
 
 
-function createSoloSessionIntializeMessage(): WebhookEditMessageOptions {
+function createSoloSessionIntializeMessage(): InteractionReplyOptions {
 	return {
 		content: `
 ボタンが赤く光ったタイミングで押そう。
 [START]をPUSHで開始だ！`,
 		components: [
-			new MessageActionRow().addComponents(new MessageButton().setCustomId(`iaigiri-start`).setStyle("SUCCESS").setLabel("START"))
+			new ActionRowBuilder<ButtonBuilder>().addComponents(new ButtonBuilder().setCustomId(`iaigiri-start`).setStyle(ButtonStyle.Success).setLabel("START"))
 		]
 	}
 }
@@ -52,6 +51,7 @@ export const IaigiriRegister: CommandRegister = async (rest: REST, applicationId
 		async onHandler(it) {
 			if (it.isCommand()) {
 				if (it.commandName !== command.name) return;
+				if (!it.isChatInputCommand()) return;
 				await it.deferReply();
 				await it.followUp(createSoloSessionIntializeMessage());
 			}
@@ -63,14 +63,14 @@ export const IaigiriRegister: CommandRegister = async (rest: REST, applicationId
 					case "START":
 						const targetMiliSecond = Math.floor(5000 + 15000 * Math.random())
 
-						await it.deferReply();
+						await it.deferUpdate();
 
-						const message = await it.editReply({
+						await it.editReply({
 							content: `ボタンが赤く光ったタイミングで押そう。\n`,
-							components: [new MessageActionRow().addComponents(
-								new MessageButton()
+							components: [new ActionRowBuilder<ButtonBuilder>().addComponents(
+								new ButtonBuilder()
 									.setCustomId(`iaigiri-dummy`)
-									.setStyle("SECONDARY")
+									.setStyle(ButtonStyle.Secondary)
 									.setLabel("見切った!")
 									.setDisabled(false)
 							)]
@@ -81,13 +81,13 @@ export const IaigiriRegister: CommandRegister = async (rest: REST, applicationId
 							it.editReply({
 								content: "今だ!",
 								components: [
-									new MessageActionRow().addComponents(
-										new MessageButton()
+									new ActionRowBuilder<ButtonBuilder>().addComponents(
+										new ButtonBuilder()
 											.setCustomId(`iaigiri-ok|${new Date(
 												date.valueOf() + targetMiliSecond
 											).valueOf()}`)
 											.setLabel("見切った!")
-											.setStyle("DANGER")
+											.setStyle(ButtonStyle.Danger)
 									)
 								]
 							})
@@ -107,7 +107,7 @@ export const IaigiriRegister: CommandRegister = async (rest: REST, applicationId
 						break
 
 					case "OK":
-						await it.deferReply();
+						await it.deferUpdate();
 						const dateDiff = it.createdAt.valueOf() - buttonCommand.startDate.valueOf()
 						await it.editReply({
 							content: `${it.user.toString()} ${dateDiff / 1000}秒!`

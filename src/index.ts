@@ -3,7 +3,7 @@ import DotEnv from "dotenv";
 import { CommandHandler } from "./typeings/command";
 
 import { TweetLinkRegister } from "./commands/tweet_link"
-import { Client, Intents } from "discord.js";
+import { Client, GatewayIntentBits } from "discord.js";
 import { ShindanMakerRegister } from "./commands/shindan_maker";
 import { ScratchRegister } from "./commands/scratch";
 import { LightsOutRegister } from "./commands/lights_out";
@@ -20,7 +20,7 @@ const rest = new REST({
 	version: "9"
 }).setToken(token)
 
-const client = new Client({ intents: [Intents.FLAGS.GUILDS] });
+const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 const CommandRegisters = [
 	TweetLinkRegister,
