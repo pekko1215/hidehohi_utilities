@@ -5,6 +5,7 @@ import { CommandHandler } from "./typeings/command";
 import { TweetLinkRegister } from "./commands/tweet_link"
 import { Client, GatewayIntentBits } from "discord.js";
 import { ScratchRegister } from "./commands/scratch";
+import { SlotRegister } from "./commands/slot";
 import { LightsOutRegister } from "./commands/lights_out";
 import { IaigiriRegister } from "./commands/iaigiri";
 import { ChannelPointsRegister } from "./commands/channel_points";
@@ -33,6 +34,7 @@ const CommandRegisters = [
 	TweetLinkRegister,
 	// ShindanMakerRegister,
 	ScratchRegister,
+	SlotRegister,
 	LightsOutRegister,
 	IaigiriRegister,
 	ChannelPointsRegister
