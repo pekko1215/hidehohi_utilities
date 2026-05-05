@@ -24,38 +24,38 @@ const SettingLotTables: Record<number, { lot: number, symbol: ScratchSymbol }[]>
 	1: [ // 機械割 約96%
 		{ lot: 1 / 3, symbol: "🐈" }, { lot: 1 / 3, symbol: "🍅" },
 		{ lot: 1 / 6.5, symbol: "🍖" }, { lot: 1 / 6.5, symbol: "🍣" },
-		{ lot: 1 / 11, symbol: "💎" }, { lot: 1 / 11, symbol: "🎰" },
-		{ lot: 1 / 25, symbol: "🤡" }
+		{ lot: 1 / 15, symbol: "💎" }, { lot: 1 / 15, symbol: "🎰" },
+		{ lot: 1 / 44, symbol: "🤡" }
 	],
 	2: [ // 機械割 約110%
 		{ lot: 1 / 3, symbol: "🐈" }, { lot: 1 / 3, symbol: "🍅" },
 		{ lot: 1 / 5.5, symbol: "🍖" }, { lot: 1 / 5.5, symbol: "🍣" },
-		{ lot: 1 / 9.5, symbol: "💎" }, { lot: 1 / 9.5, symbol: "🎰" },
-		{ lot: 1 / 18, symbol: "🤡" }
+		{ lot: 1 / 13, symbol: "💎" }, { lot: 1 / 13, symbol: "🎰" },
+		{ lot: 1 / 42, symbol: "🤡" }
 	],
 	3: [ // 機械割 約120%
 		{ lot: 1 / 3, symbol: "🐈" }, { lot: 1 / 3, symbol: "🍅" },
 		{ lot: 1 / 5.2, symbol: "🍖" }, { lot: 1 / 5.2, symbol: "🍣" },
-		{ lot: 1 / 9, symbol: "💎" }, { lot: 1 / 9, symbol: "🎰" },
-		{ lot: 1 / 16, symbol: "🤡" }
+		{ lot: 1 / 12, symbol: "💎" }, { lot: 1 / 12, symbol: "🎰" },
+		{ lot: 1 / 36, symbol: "🤡" }
 	],
 	4: [ // 機械割 約130%
 		{ lot: 1 / 3, symbol: "🐈" }, { lot: 1 / 3, symbol: "🍅" },
 		{ lot: 1 / 5, symbol: "🍖" }, { lot: 1 / 5, symbol: "🍣" },
-		{ lot: 1 / 8.5, symbol: "💎" }, { lot: 1 / 8.5, symbol: "🎰" },
-		{ lot: 1 / 14, symbol: "🤡" }
+		{ lot: 1 / 11, symbol: "💎" }, { lot: 1 / 11, symbol: "🎰" },
+		{ lot: 1 / 31, symbol: "🤡" }
 	],
 	5: [ // 機械割 約140%
 		{ lot: 1 / 3, symbol: "🐈" }, { lot: 1 / 3, symbol: "🍅" },
 		{ lot: 1 / 4.8, symbol: "🍖" }, { lot: 1 / 4.8, symbol: "🍣" },
-		{ lot: 1 / 8, symbol: "💎" }, { lot: 1 / 8, symbol: "🎰" },
-		{ lot: 1 / 12, symbol: "🤡" }
+		{ lot: 1 / 10, symbol: "💎" }, { lot: 1 / 10, symbol: "🎰" },
+		{ lot: 1 / 29, symbol: "🤡" }
 	],
 	6: [ // 機械割 約150% (エクストラ設定)
 		{ lot: 1 / 3, symbol: "🐈" }, { lot: 1 / 3, symbol: "🍅" },
 		{ lot: 1 / 4.5, symbol: "🍖" }, { lot: 1 / 4.5, symbol: "🍣" },
-		{ lot: 1 / 7, symbol: "💎" }, { lot: 1 / 7, symbol: "🎰" },
-		{ lot: 1 / 10, symbol: "🤡" }
+		{ lot: 1 / 9, symbol: "💎" }, { lot: 1 / 9, symbol: "🎰" },
+		{ lot: 1 / 24, symbol: "🤡" }
 	]
 }
 

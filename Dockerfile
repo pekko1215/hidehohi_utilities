@@ -1,1 +1,1 @@
-FROM node:22-buster
+FROM node:22
