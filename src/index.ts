@@ -5,7 +5,7 @@ import { CommandHandler } from "./typeings/command";
 import { TweetLinkRegister } from "./commands/tweet_link"
 import { Client, GatewayIntentBits } from "discord.js";
 import { ScratchRegister } from "./commands/scratch";
-import { SlotRegister } from "./commands/slot";
+import { SlotRegister } from "./commands/pachislot";
 import { LightsOutRegister } from "./commands/lights_out";
 import { IaigiriRegister } from "./commands/iaigiri";
 import { ChannelPointsRegister } from "./commands/channel_points";
@@ -37,7 +37,7 @@ const CommandRegisters = [
 	SlotRegister,
 	LightsOutRegister,
 	IaigiriRegister,
-	ChannelPointsRegister
+	ChannelPointsRegister,
 ];
 
 const Handlers: CommandHandler[] = [];
@@ -58,6 +58,7 @@ const botListen = () => {
 (async () => {
 	await Promise.all(CommandRegisters.map(async (register) => {
 		Handlers.push(await register(rest, applicationId))
+		console.log(`Registered command: ${Handlers[Handlers.length - 1].name} - ${Handlers[Handlers.length - 1].description}`)
 	}))
 	botListen();
 })()
