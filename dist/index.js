@@ -8,10 +8,11 @@ const dotenv_1 = __importDefault(require("dotenv"));
 const tweet_link_1 = require("./commands/tweet_link");
 const discord_js_1 = require("discord.js");
 const scratch_1 = require("./commands/scratch");
-const slot_1 = require("./commands/slot");
+const pachislot_1 = require("./commands/pachislot");
 const lights_out_1 = require("./commands/lights_out");
 const iaigiri_1 = require("./commands/iaigiri");
 const channel_points_1 = require("./commands/channel_points");
+const ranking_1 = require("./commands/ranking");
 dotenv_1.default.config();
 const token = process.env.BOT_TOKEN;
 const applicationId = process.env.APPLICATION_ID;
@@ -34,10 +35,11 @@ const CommandRegisters = [
     tweet_link_1.TweetLinkRegister,
     // ShindanMakerRegister,
     scratch_1.ScratchRegister,
-    slot_1.SlotRegister,
+    pachislot_1.SlotRegister,
     lights_out_1.LightsOutRegister,
     iaigiri_1.IaigiriRegister,
-    channel_points_1.ChannelPointsRegister
+    channel_points_1.ChannelPointsRegister,
+    ranking_1.RankingRegister,
 ];
 const Handlers = [];
 const botListen = () => {
@@ -54,6 +56,7 @@ const botListen = () => {
 (async () => {
     await Promise.all(CommandRegisters.map(async (register) => {
         Handlers.push(await register(rest, applicationId));
+        console.log(`Registered command: ${Handlers[Handlers.length - 1].name} - ${Handlers[Handlers.length - 1].description}`);
     }));
     botListen();
 })();

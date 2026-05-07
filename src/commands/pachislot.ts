@@ -39,11 +39,11 @@ const EmojiMappings: { [key in SymbolType]: string } = {
 };
 
 // 小役の抽選確率 (1/xxx の形式で設定)
-const YakuProbabilities: { yaku: string, prob: number }[] = [
-	{ yaku: "ピンク7-ピンク7-ピンク7", prob: 1 / 1024 },
-	{ yaku: "白7-白7-白7", prob: 1 / 1024 },
-	{ yaku: "ピンク7-ピンク7-BAR", prob: 1 / 450 },
-	{ yaku: "白7-白7-BAR", prob: 1 / 450 },
+const YakuProbabilities: { yaku: string, prob: number, bonus?: boolean }[] = [
+	{ yaku: "ピンク7-ピンク7-ピンク7", prob: 1 / 1024, bonus: true },
+	{ yaku: "白7-白7-白7", prob: 1 / 1024, bonus: true },
+	{ yaku: "ピンク7-ピンク7-BAR", prob: 1 / 450, bonus: true },
+	{ yaku: "白7-白7-BAR", prob: 1 / 450, bonus: true },
 	{ yaku: "スイカ-スイカ-スイカ", prob: 1 / 90 },
 	{ yaku: "チェリー-ANY-ANY", prob: 1 / 45 },
 	{ yaku: "ベル-ベル-ベル", prob: 1 / 7.2 },
@@ -59,14 +59,14 @@ enum Phase {
 	FINISHED = 5
 }
 
-function getRandomYaku(): string {
+function getRandomYaku(): { yaku: string, bonus: boolean } {
 	const r = Math.random();
 	let cumulative = 0;
 	for (const item of YakuProbabilities) {
 		cumulative += item.prob;
-		if (r < cumulative) return item.yaku;
+		if (r < cumulative) return { yaku: item.yaku, bonus: !!item.bonus };
 	}
-	return "MISS";
+	return { yaku: "MISS", bonus: false };
 }
 
 function checkHit(positions: number[]): { yaku: string, payout: number } {
@@ -149,7 +149,7 @@ function findStopPositions(yaku: string): number[] {
 	return positions;
 }
 
-function createSlotMessage(userId: string, bet: number, phase: Phase, targets: number[], currentPoints: number): any {
+function createSlotMessage(userId: string, bet: number, phase: Phase, targets: number[], currentPoints: number, isBonus: boolean = false): any {
 	const spinningEmoji = "🎰";
 	const stoppedEmoji = "⬜";
 	
@@ -179,9 +179,14 @@ function createSlotMessage(userId: string, bet: number, phase: Phase, targets: n
 	let content = `<@${userId}> のスロット台\n`;
 	content += `所持ポイント: ${currentPoints} Pt\n`;
 	content += `掛け金: ${bet} Pt (3枚掛け: ${bet * 3} Pt消費)\n\n`;
-	content += `[ ${grid[0][0]} | ${grid[0][1]} | ${grid[0][2]} ]\n`;
-	content += `[ ${grid[1][0]} | ${grid[1][1]} | ${grid[1][2]} ]\n`;
-	content += `[ ${grid[2][0]} | ${grid[2][1]} | ${grid[2][2]} ]\n\n`;
+
+	const leftHana = (isBonus && phase >= Phase.SPINNING) ? ":left_hanahana:" : ":left_hanahana_off:";
+	const rightHana = (isBonus && phase >= Phase.SPINNING) ? ":right_hanahana:" : ":right_hanahana_off:";
+
+	content += `# ${leftHana}　　　　　${rightHana}\n`;
+	content += `# ${grid[0][0]} ${grid[0][1]} ${grid[0][2]}\n`;
+	content += `# ${grid[1][0]} ${grid[1][1]} ${grid[1][2]}\n`;
+	content += `# ${grid[2][0]} ${grid[2][1]} ${grid[2][2]}\n\n`;
 
 	if (phase === Phase.FINISHED) {
 		const hit = checkHit(targets);
@@ -200,7 +205,8 @@ function createSlotMessage(userId: string, bet: number, phase: Phase, targets: n
 	}
 
 	const targetsStr = targets.join(",");
-	const stateStr = `${userId}-${bet}-${phase}-${targetsStr}`;
+	const bonusStr = isBonus ? "1" : "0";
+	const stateStr = `${userId}-${bet}-${phase}-${targetsStr}-${bonusStr}`;
 
 	const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
 		new ButtonBuilder()
@@ -281,6 +287,7 @@ export const SlotRegister: CommandRegister = async (rest: REST, applicationId: s
 				const bet = parseInt(parts[3]);
 				let phase = parseInt(parts[4]) as Phase;
 				let targets = parts[5].split(",").map(s => parseInt(s));
+				let isBonus = parts[6] === "1";
 
 				if (it.user.id !== ownerId) {
 					await it.reply({ content: "他人のスロットは操作できません！", ephemeral: true });
@@ -298,9 +305,11 @@ export const SlotRegister: CommandRegister = async (rest: REST, applicationId: s
 					addPoints(it.user.id, -totalBet);
 					userPoints -= totalBet;
 					phase = Phase.WAITING_LEVER;
+					isBonus = false;
 				} else if (action === "lever") {
-					const yaku = getRandomYaku();
-					targets = findStopPositions(yaku);
+					const result = getRandomYaku();
+					targets = findStopPositions(result.yaku);
+					isBonus = result.bonus;
 					phase = Phase.SPINNING;
 				} else if (action === "stop1") {
 					phase = Phase.STOPPED_1;
@@ -319,7 +328,7 @@ export const SlotRegister: CommandRegister = async (rest: REST, applicationId: s
 				}
 
 				if (it.isButton()) {
-					await it.update(createSlotMessage(ownerId, bet, phase, targets, userPoints));
+					await it.update(createSlotMessage(ownerId, bet, phase, targets, userPoints, isBonus));
 				}
 			}
 		}

@@ -9,6 +9,7 @@ import { SlotRegister } from "./commands/pachislot";
 import { LightsOutRegister } from "./commands/lights_out";
 import { IaigiriRegister } from "./commands/iaigiri";
 import { ChannelPointsRegister } from "./commands/channel_points";
+import { RankingRegister } from "./commands/ranking";
 
 DotEnv.config()
 const token = process.env.BOT_TOKEN;
@@ -38,6 +39,7 @@ const CommandRegisters = [
 	LightsOutRegister,
 	IaigiriRegister,
 	ChannelPointsRegister,
+	RankingRegister,
 ];
 
 const Handlers: CommandHandler[] = [];
