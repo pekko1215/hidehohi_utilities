@@ -180,10 +180,10 @@ function createSlotMessage(userId: string, bet: number, phase: Phase, targets: n
 	content += `所持ポイント: ${currentPoints} Pt\n`;
 	content += `掛け金: ${bet} Pt (3枚掛け: ${bet * 3} Pt消費)\n\n`;
 
-	const leftHana = (isBonus && phase >= Phase.SPINNING) ? "<:left_hanahana:1480431562309898321>" : "<:left_hanahana_off:1480824344006492251>";
-	const rightHana = (isBonus && phase >= Phase.SPINNING) ? "<:right_hanahana:1480433156027846727>" : "<:right_hanahana_off:1480824297277624446>";
+	const leftHana = (isBonus && phase >= Phase.SPINNING) ? "<a:left_hanahana:1480431562309898321>" : "<:left_hanahana_off:1480824344006492251>";
+	const rightHana = (isBonus && phase >= Phase.SPINNING) ? "<a:right_hanahana:1480433156027846727>" : "<:right_hanahana_off:1480824297277624446>";
 
-	content += `# ${leftHana}　${rightHana}\n`;
+	content += `# ${leftHana}　　${rightHana}\n`;
 	content += `# ${grid[0][0]} ${grid[0][1]} ${grid[0][2]}\n`;
 	content += `# ${grid[1][0]} ${grid[1][1]} ${grid[1][2]}\n`;
 	content += `# ${grid[2][0]} ${grid[2][1]} ${grid[2][2]}\n\n`;
