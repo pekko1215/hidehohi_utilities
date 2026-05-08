@@ -283,8 +283,8 @@ export const ScratchRegister: CommandRegister = async (rest: REST, applicationId
 				await it.deferReply();
 				const scratch = createScratch(setting)
 				const symbolIdList = scratch.flat().map(s => SymbolIdTable.findIndex(v => v === s));
-				const winnings = getWinnings(symbolIdList, bet);
-				const isRare = winnings >= 500 && Math.random() < 1/3;
+				const rawScore = getWinnings(symbolIdList, 0);
+				const isRare = rawScore >= 500 && Math.random() < 1 / 3;
 				await it.followUp(createScratchMessage(symbolIdList, [], bet, it.user.id, setting, isRare))
 			}
 
