@@ -104,7 +104,20 @@ function createScratch(setting: number): Scratch {
 	]
 }
 
-function createScratchMessage(symbolIdList: number[], openSymbolIdList: number[], bet: number, userId: string, setting: number): InteractionReplyOptions {
+function getWinnings(symbolIdList: number[], bet: number): number {
+	const scratch: Scratch = [] as any;
+	for (let i = 0; i < 3; i++) {
+		scratch.push(symbolIdList.slice(i * 3, i * 3 + 3).map(id => SymbolIdTable[id]) as any);
+	}
+	const hitList = HitCheck(scratch);
+	let totalScore = 0;
+	hitList.forEach(hit => {
+		totalScore += SymbolHitPointTable[hit.symbol];
+	});
+	return bet === 0 ? totalScore : Math.floor(totalScore * (bet / 100));
+}
+
+function createScratchMessage(symbolIdList: number[], openSymbolIdList: number[], bet: number, userId: string, setting: number, isRare: boolean = false): InteractionReplyOptions {
 	const rows: ActionRowBuilder<ButtonBuilder>[] = []
 	const scratch: [
 		Partial<Scratch[0]>,
@@ -124,8 +137,8 @@ function createScratchMessage(symbolIdList: number[], openSymbolIdList: number[]
 			scratch[y][x] = symbol;
 
 			row.addComponents(new ButtonBuilder()
-				.setCustomId(`scratch-${bet}-${symbolIdList.join("")}-${openSymbolIdList.join("")}${idx}-${setting}`)
-				.setStyle(isOpen ? symbol === "🤡" ? ButtonStyle.Danger : ButtonStyle.Secondary : ButtonStyle.Primary)
+				.setCustomId(`scratch-${bet}-${symbolIdList.join("")}-${openSymbolIdList.join("")}${idx}-${setting}-${isRare ? 1 : 0}`)
+				.setStyle(isOpen ? (symbol === "🤡" ? ButtonStyle.Danger : ButtonStyle.Secondary) : (isRare ? ButtonStyle.Success : ButtonStyle.Primary))
 				.setDisabled(isOpen)
 				.setEmoji(isOpen ? symbol : "⬜"));
 		}
@@ -269,13 +282,17 @@ export const ScratchRegister: CommandRegister = async (rest: REST, applicationId
 
 				await it.deferReply();
 				const scratch = createScratch(setting)
-				await it.followUp(createScratchMessage(scratch.flat().map(s => SymbolIdTable.findIndex(v => v === s)), [], bet, it.user.id, setting))
+				const symbolIdList = scratch.flat().map(s => SymbolIdTable.findIndex(v => v === s));
+				const winnings = getWinnings(symbolIdList, bet);
+				const isRare = winnings >= 500 && Math.random() < 1/3;
+				await it.followUp(createScratchMessage(symbolIdList, [], bet, it.user.id, setting, isRare))
 			}
 
 			if (it.isButton()) {
-				const match = it.customId.match(/^scratch-(\d+)-(\d+)-(\d+)-(\d+)$/)
+				const match = it.customId.match(/^scratch-(\d+)-(\d+)-(\d+)-(\d+)(?:-(\d+))?$/)
 				if (!match) return;
-				const [_, betStr, scratchIdStr, opendIdStr, settingStr] = match;
+				const [_, betStr, scratchIdStr, opendIdStr, settingStr, isRareStr] = match;
+				const isRare = isRareStr === "1";
 				const bet = parseInt(betStr);
 				const scratchIdList = [...scratchIdStr].map(s => parseInt(s));
 				const openIdList = [...opendIdStr].map(s => parseInt(s));
@@ -291,22 +308,13 @@ export const ScratchRegister: CommandRegister = async (rest: REST, applicationId
 
 				// If all opened, award points
 				if (openIdList.length === 9 && bet > 0) {
-					const scratch: Scratch = [] as any;
-					for (let i = 0; i < 3; i++) {
-						scratch.push(scratchIdList.slice(i * 3, i * 3 + 3).map(id => SymbolIdTable[id]) as any);
-					}
-					const hitList = HitCheck(scratch);
-					let resultScore = 0;
-					hitList.forEach(hit => {
-						resultScore += SymbolHitPointTable[hit.symbol];
-					});
-					const winnings = Math.floor(resultScore * (bet / 100));
+					const winnings = getWinnings(scratchIdList, bet);
 					if (winnings > 0) {
 						addPoints(it.user.id, winnings);
 					}
 				}
 
-				const scratchMessage = createScratchMessage(scratchIdList, openIdList, bet, it.user.id, setting);
+				const scratchMessage = createScratchMessage(scratchIdList, openIdList, bet, it.user.id, setting, isRare);
 
 				await rest.post(Routes.interactionCallback(it.id, it.token), {
 					body: {
