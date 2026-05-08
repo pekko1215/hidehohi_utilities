@@ -181,6 +181,15 @@ function createScratchMessage(symbolIdList: number[], openSymbolIdList: number[]
 		const userPoints = getPoints(userId);
 		scratchMessage += `\n所持ポイント: ${userPoints}Pt`;
 
+		const retryRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+			new ButtonBuilder()
+				.setCustomId(`scratchretry-${bet}`)
+				.setLabel("もう一回！")
+				.setStyle(ButtonStyle.Primary)
+				.setEmoji("🔄")
+		);
+		rows.push(retryRow);
+
 		return {
 			components: rows,
 			content: scratchMessage,
@@ -263,7 +272,6 @@ export const ScratchRegister: CommandRegister = async (rest: REST, applicationId
 				let setting = 1;
 
 				if (hot) {
-					// 熱い日: 設定6が60%
 					if (rand < 60) setting = 6;
 					else if (rand < 75) setting = 1;
 					else if (rand < 85) setting = 2;
@@ -271,7 +279,6 @@ export const ScratchRegister: CommandRegister = async (rest: REST, applicationId
 					else if (rand < 98) setting = 4;
 					else setting = 5;
 				} else {
-					// 通常日: 設定1が30%
 					if (rand < 30) setting = 1;
 					else if (rand < 55) setting = 2;
 					else if (rand < 70) setting = 3;
@@ -289,6 +296,52 @@ export const ScratchRegister: CommandRegister = async (rest: REST, applicationId
 			}
 
 			if (it.isButton()) {
+				if (it.customId.startsWith("scratchretry-")) {
+					if (it.user.bot) {
+						await it.reply({ content: "Botは参加できません。", ephemeral: true });
+						return;
+					}
+
+					const bet = parseInt(it.customId.split("-")[1]);
+					const userPoints = getPoints(it.user.id);
+
+					if (bet > userPoints) {
+						await it.reply({ content: `ポイントが足りません！ (現在の所持ポイント: ${userPoints}Pt)`, ephemeral: true });
+						return;
+					}
+
+					if (bet > 0) {
+						addPoints(it.user.id, -bet);
+					}
+
+					const hot = isHotDay();
+					const rand = Math.random() * 100;
+					let setting = 1;
+
+					if (hot) {
+						if (rand < 60) setting = 6;
+						else if (rand < 75) setting = 1;
+						else if (rand < 85) setting = 2;
+						else if (rand < 93) setting = 3;
+						else if (rand < 98) setting = 4;
+						else setting = 5;
+					} else {
+						if (rand < 30) setting = 1;
+						else if (rand < 55) setting = 2;
+						else if (rand < 70) setting = 3;
+						else if (rand < 80) setting = 4;
+						else if (rand < 95) setting = 5;
+						else setting = 6;
+					}
+
+					const scratch = createScratch(setting)
+					const symbolIdList = scratch.flat().map(s => SymbolIdTable.findIndex(v => v === s));
+					const rawScore = getWinnings(symbolIdList, 0);
+					const isRare = rawScore >= 500 && Math.random() < 1 / 3;
+					await it.reply(createScratchMessage(symbolIdList, [], bet, it.user.id, setting, isRare));
+					return;
+				}
+
 				const match = it.customId.match(/^scratch-(\d+)-(\d+)-(\d+)-(\d+)(?:-(\d+))?$/)
 				if (!match) return;
 				const [_, betStr, scratchIdStr, opendIdStr, settingStr, isRareStr] = match;
