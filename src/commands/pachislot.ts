@@ -40,13 +40,13 @@ const EmojiMappings: { [key in SymbolType]: string } = {
 
 // 小役の抽選確率 (1/xxx の形式で設定)
 const YakuProbabilities: { yaku: string, prob: number, bonus?: boolean }[] = [
-	{ yaku: "ピンク7-ピンク7-ピンク7", prob: 1 / 1024, bonus: true },
-	{ yaku: "白7-白7-白7", prob: 1 / 1024, bonus: true },
+	{ yaku: "ピンク7-ピンク7-ピンク7", prob: 1 / 890, bonus: true },
+	{ yaku: "白7-白7-白7", prob: 1 / 890, bonus: true },
 	{ yaku: "ピンク7-ピンク7-BAR", prob: 1 / 450, bonus: true },
 	{ yaku: "白7-白7-BAR", prob: 1 / 450, bonus: true },
 	{ yaku: "スイカ-スイカ-スイカ", prob: 1 / 90 },
-	{ yaku: "チェリー-ANY-ANY", prob: 1 / 45 },
-	{ yaku: "ベル-ベル-ベル", prob: 1 / 7.2 },
+	{ yaku: "チェリー-ANY-ANY", prob: 1 / 55 },
+	{ yaku: "ベル-ベル-ベル", prob: 1 / 11 },
 	{ yaku: "リプレイ-リプレイ-リプレイ", prob: 1 / 7.3 },
 ];
 
@@ -149,7 +149,7 @@ function findStopPositions(yaku: string): number[] {
 	return positions;
 }
 
-function createSlotMessage(userId: string, bet: number, phase: Phase, targets: number[], currentPoints: number, isBonus: boolean = false): any {
+function createSlotMessage(userId: string, bet: number, phase: Phase, targets: number[], currentPoints: number, isBonus: boolean = false, stats: { cur: number, total: number, big: number, reg: number } = { cur: 0, total: 0, big: 0, reg: 0 }): any {
 	const spinningEmoji = "🎰";
 	const stoppedEmoji = "⬜";
 	
@@ -178,10 +178,11 @@ function createSlotMessage(userId: string, bet: number, phase: Phase, targets: n
 
 	let content = `<@${userId}> のスロット台\n`;
 	content += `所持ポイント: ${currentPoints} Pt\n`;
-	content += `掛け金: ${bet} Pt (3枚掛け: ${bet * 3} Pt消費)\n\n`;
+	content += `掛け金: ${bet} Pt (3枚掛け: ${bet * 3} Pt消費)\n`;
+	content += `**回転数: ${stats.cur}** | **総回転数: ${stats.total}** | **BIG: ${stats.big}** | **REG: ${stats.reg}**\n\n`;
 
-	const leftHana = (isBonus && phase >= Phase.SPINNING) ? "<a:left_hanahana:1480431562309898321>" : "<:left_hanahana_off:1480824344006492251>";
-	const rightHana = (isBonus && phase >= Phase.SPINNING) ? "<a:right_hanahana:1480433156027846727>" : "<:right_hanahana_off:1480824297277624446>";
+	const leftHana = (isBonus && Math.floor(Math.random() * 3) < 2 && phase >= Phase.SPINNING) ? "<a:left_hanahana:1480431562309898321>" : "<:left_hanahana_off:1480824344006492251>";
+	const rightHana = (isBonus && Math.floor(Math.random() * 3) < 2 && phase >= Phase.SPINNING) ? "<a:right_hanahana:1480433156027846727>" : "<:right_hanahana_off:1480824297277624446>";
 
 	content += `# ${leftHana}　　${rightHana}\n`;
 	content += `# ${grid[0][0]} ${grid[0][1]} ${grid[0][2]}\n`;
@@ -206,7 +207,8 @@ function createSlotMessage(userId: string, bet: number, phase: Phase, targets: n
 
 	const targetsStr = targets.join(",");
 	const bonusStr = isBonus ? "1" : "0";
-	const stateStr = `${userId}-${bet}-${phase}-${targetsStr}-${bonusStr}`;
+	const statsStr = `${stats.cur}-${stats.total}-${stats.big}-${stats.reg}`;
+	const stateStr = `${userId}-${bet}-${phase}-${targetsStr}-${bonusStr}-${statsStr}`;
 
 	const row1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
 		new ButtonBuilder()
@@ -288,6 +290,12 @@ export const SlotRegister: CommandRegister = async (rest: REST, applicationId: s
 				let phase = parseInt(parts[4]) as Phase;
 				let targets = parts[5].split(",").map(s => parseInt(s));
 				let isBonus = parts[6] === "1";
+				let stats = {
+					cur: parseInt(parts[7]) || 0,
+					total: parseInt(parts[8]) || 0,
+					big: parseInt(parts[9]) || 0,
+					reg: parseInt(parts[10]) || 0
+				};
 
 				if (it.user.id !== ownerId) {
 					await it.reply({ content: "他人のスロットは操作できません！", flags: [MessageFlags.Ephemeral] });
@@ -320,6 +328,8 @@ export const SlotRegister: CommandRegister = async (rest: REST, applicationId: s
 					targets = findStopPositions(result.yaku);
 					isBonus = result.bonus;
 					nextPhase = Phase.SPINNING;
+					stats.cur++;
+					stats.total++;
 				} else if (action === "stop1") {
 					if (phase !== Phase.SPINNING) {
 						await it.deferUpdate();
@@ -345,11 +355,19 @@ export const SlotRegister: CommandRegister = async (rest: REST, applicationId: s
 							addPoints(it.user.id, win);
 							userPoints += win;
 						}
+						
+						if (hit.yaku.includes("ピンク7-ピンク7-ピンク7") || hit.yaku.includes("白7-白7-白7")) {
+							stats.big++;
+							stats.cur = 0;
+						} else if (hit.yaku.includes("ピンク7-ピンク7-BAR") || hit.yaku.includes("白7-白7-BAR")) {
+							stats.reg++;
+							stats.cur = 0;
+						}
 					}
 				}
 
 				if (it.isButton()) {
-					await it.update(createSlotMessage(ownerId, bet, nextPhase, targets, userPoints, isBonus));
+					await it.update(createSlotMessage(ownerId, bet, nextPhase, targets, userPoints, isBonus, stats));
 				}
 			}
 		}

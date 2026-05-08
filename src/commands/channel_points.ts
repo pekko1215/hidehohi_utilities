@@ -30,44 +30,20 @@ export const ChannelPointsRegister: CommandRegister = async (rest: REST, applica
 				addPoints(message.author.id, 15);
 			});
 
-			// Voice chat tracking: 50 points every 5 minutes
-			client.on("voiceStateUpdate", (oldState, newState) => {
-				const userId = newState.member?.id;
-				if (!userId || newState.member?.user.bot) return;
-
-				// User joined a voice channel
-				if (!oldState.channelId && newState.channelId) {
-					voiceTracking.set(userId, Date.now());
-				}
-				// User left a voice channel
-				else if (oldState.channelId && !newState.channelId) {
-					const joinTime = voiceTracking.get(userId);
-					if (joinTime) {
-						const durationMinutes = (Date.now() - joinTime) / (1000 * 60);
-						const points = Math.floor(durationMinutes / 5) * 50;
-						if (points > 0) {
-							addPoints(userId, points);
-						}
-						voiceTracking.delete(userId);
-					}
-				}
-			});
-
-			// Periodic check for users still in voice chat
+			// Periodic check for users in voice chat: 50 points every 5 minutes
 			setInterval(() => {
-				const now = Date.now();
-				voiceTracking.forEach((joinTime, userId) => {
-					const durationMinutes = (now - joinTime) / (1000 * 60);
-					if (durationMinutes >= 5) {
-						const points = Math.floor(durationMinutes / 5) * 50;
-						if (points > 0) {
-							addPoints(userId, points);
-							// Update joinTime to the last awarded interval to avoid double awarding
-							voiceTracking.set(userId, now - (durationMinutes % 5) * 60 * 1000);
+				client.guilds.cache.forEach(guild => {
+					guild.channels.cache.forEach(channel => {
+						if (channel.isVoiceBased()) {
+							channel.members.forEach(member => {
+								if (!member.user.bot) {
+									addPoints(member.id, 50);
+								}
+							});
 						}
-					}
+					});
 				});
-			}, 60 * 1000); // Check every minute
+			}, 5 * 60 * 1000);
 		}
 	};
 };
