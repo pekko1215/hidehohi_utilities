@@ -281,8 +281,16 @@ export const ScratchRegister: CommandRegister = async (rest: REST, applicationId
 				const openIdList = [...opendIdStr].map(s => parseInt(s));
 				const setting = parseInt(settingStr);
 				
+				// Prevent double-clicking the same button
+				const lastIdx = openIdList[openIdList.length - 1];
+				const previousOpenIds = openIdList.slice(0, -1);
+				if (previousOpenIds.includes(lastIdx)) {
+					await it.deferUpdate();
+					return;
+				}
+
 				// If all opened, award points
-				if (scratchIdList.length === openIdList.length && bet > 0) {
+				if (openIdList.length === 9 && bet > 0) {
 					const scratch: Scratch = [] as any;
 					for (let i = 0; i < 3; i++) {
 						scratch.push(scratchIdList.slice(i * 3, i * 3 + 3).map(id => SymbolIdTable[id]) as any);

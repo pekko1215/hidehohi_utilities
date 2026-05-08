@@ -295,8 +295,13 @@ export const SlotRegister: CommandRegister = async (rest: REST, applicationId: s
 				}
 
 				let userPoints = getPoints(it.user.id);
+				let nextPhase = phase;
 
 				if (action === "bet") {
+					if (phase !== Phase.WAITING_BET && phase !== Phase.FINISHED) {
+						await it.deferUpdate();
+						return;
+					}
 					const totalBet = bet * 3;
 					if (userPoints < totalBet) {
 						await it.reply({ content: `ポイントが足りません！ (${totalBet} Pt 必要です)`, ephemeral: true });
@@ -304,19 +309,35 @@ export const SlotRegister: CommandRegister = async (rest: REST, applicationId: s
 					}
 					addPoints(it.user.id, -totalBet);
 					userPoints -= totalBet;
-					phase = Phase.WAITING_LEVER;
+					nextPhase = Phase.WAITING_LEVER;
 					isBonus = false;
 				} else if (action === "lever") {
+					if (phase !== Phase.WAITING_LEVER) {
+						await it.deferUpdate();
+						return;
+					}
 					const result = getRandomYaku();
 					targets = findStopPositions(result.yaku);
 					isBonus = result.bonus;
-					phase = Phase.SPINNING;
+					nextPhase = Phase.SPINNING;
 				} else if (action === "stop1") {
-					phase = Phase.STOPPED_1;
+					if (phase !== Phase.SPINNING) {
+						await it.deferUpdate();
+						return;
+					}
+					nextPhase = Phase.STOPPED_1;
 				} else if (action === "stop2") {
-					phase = Phase.STOPPED_2;
+					if (phase !== Phase.STOPPED_1) {
+						await it.deferUpdate();
+						return;
+					}
+					nextPhase = Phase.STOPPED_2;
 				} else if (action === "stop3") {
-					phase = Phase.FINISHED;
+					if (phase !== Phase.STOPPED_2) {
+						await it.deferUpdate();
+						return;
+					}
+					nextPhase = Phase.FINISHED;
 					const hit = checkHit(targets);
 					if (hit.yaku !== "MISS") {
 						const win = bet * hit.payout;
@@ -328,7 +349,7 @@ export const SlotRegister: CommandRegister = async (rest: REST, applicationId: s
 				}
 
 				if (it.isButton()) {
-					await it.update(createSlotMessage(ownerId, bet, phase, targets, userPoints, isBonus));
+					await it.update(createSlotMessage(ownerId, bet, nextPhase, targets, userPoints, isBonus));
 				}
 			}
 		}
