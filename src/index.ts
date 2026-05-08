@@ -11,6 +11,7 @@ import { IaigiriRegister } from "./commands/iaigiri";
 import { ChannelPointsRegister } from "./commands/channel_points";
 import { RankingRegister } from "./commands/ranking";
 import { SendRegister } from "./commands/send";
+import { BetRegister } from "./commands/bet";
 
 DotEnv.config()
 const token = process.env.BOT_TOKEN;
@@ -42,6 +43,7 @@ const CommandRegisters = [
 	ChannelPointsRegister,
 	RankingRegister,
 	SendRegister,
+	BetRegister,
 ];
 
 const Handlers: CommandHandler[] = [];
