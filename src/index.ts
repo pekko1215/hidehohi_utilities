@@ -3,7 +3,7 @@ import DotEnv from "dotenv";
 import { CommandHandler } from "./typeings/command";
 
 import { TweetLinkRegister } from "./commands/tweet_link"
-import { Client, GatewayIntentBits } from "discord.js";
+import { Client, Events, GatewayIntentBits } from "discord.js";
 import { ScratchRegister } from "./commands/scratch";
 import { SlotRegister } from "./commands/pachislot";
 import { LightsOutRegister } from "./commands/lights_out";
@@ -46,10 +46,10 @@ const Handlers: CommandHandler[] = [];
 
 
 const botListen = () => {
-	client.on("interactionCreate", async it => {
+	client.on(Events.InteractionCreate, async it => {
 		Handlers.map(hd => hd.onHandler(it))
 	})
-	client.once('ready', () => {
+	client.once(Events.ClientReady, () => {
 		console.log('Ready!');
 		Handlers.forEach(hd => hd.onClient?.(client));
 	});

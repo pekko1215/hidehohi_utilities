@@ -43,10 +43,10 @@ const CommandRegisters = [
 ];
 const Handlers = [];
 const botListen = () => {
-    client.on("interactionCreate", async (it) => {
+    client.on(discord_js_1.Events.InteractionCreate, async (it) => {
         Handlers.map(hd => hd.onHandler(it));
     });
-    client.once('ready', () => {
+    client.once(discord_js_1.Events.ClientReady, () => {
         console.log('Ready!');
         Handlers.forEach(hd => hd.onClient?.(client));
     });

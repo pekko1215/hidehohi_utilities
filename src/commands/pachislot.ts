@@ -2,7 +2,7 @@ import { REST } from "@discordjs/rest";
 import { SlashCommandBuilder } from "@discordjs/builders"
 import { CommandRegister, CommandHandler } from "../typeings/command";
 import path from "path";
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Routes } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, Routes } from "discord.js";
 import { addPoints, getPoints } from "../utils/points";
 
 const Symbols = ["リプレイ", "ベル", "スイカ", "チェリー", "白7", "ピンク7", "BAR", "花", "ANY"] as const;
@@ -270,7 +270,7 @@ export const SlotRegister: CommandRegister = async (rest: REST, applicationId: s
 				const userPoints = getPoints(it.user.id);
 
 				if (userPoints < bet * 3) {
-					await it.reply({ content: `ポイントが足りません！ (開始には ${bet * 3} Pt 必要です)`, ephemeral: true });
+					await it.reply({ content: `ポイントが足りません！ (開始には ${bet * 3} Pt 必要です)`, flags: [MessageFlags.Ephemeral] });
 					return;
 				}
 
@@ -290,7 +290,7 @@ export const SlotRegister: CommandRegister = async (rest: REST, applicationId: s
 				let isBonus = parts[6] === "1";
 
 				if (it.user.id !== ownerId) {
-					await it.reply({ content: "他人のスロットは操作できません！", ephemeral: true });
+					await it.reply({ content: "他人のスロットは操作できません！", flags: [MessageFlags.Ephemeral] });
 					return;
 				}
 
@@ -304,7 +304,7 @@ export const SlotRegister: CommandRegister = async (rest: REST, applicationId: s
 					}
 					const totalBet = bet * 3;
 					if (userPoints < totalBet) {
-						await it.reply({ content: `ポイントが足りません！ (${totalBet} Pt 必要です)`, ephemeral: true });
+						await it.reply({ content: `ポイントが足りません！ (${totalBet} Pt 必要です)`, flags: [MessageFlags.Ephemeral] });
 						return;
 					}
 					addPoints(it.user.id, -totalBet);
