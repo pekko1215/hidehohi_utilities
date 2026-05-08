@@ -4,6 +4,19 @@ import { CommandRegister, CommandHandler } from "../typeings/command";
 import path from "path";
 import { Routes, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
 import { addPoints, getPoints } from "../utils/points";
+import fs from "fs";
+
+interface BetData {
+	id: string;
+	creatorId: string;
+	channelId: string;
+	messageId: string;
+	title: string;
+	optionA: string;
+	optionB: string;
+	bets: { [userId: string]: { amount: number; side: "a" | "b" } };
+	locked: boolean;
+}
 
 interface BetEntry {
 	id: string;
@@ -17,7 +30,39 @@ interface BetEntry {
 	locked: boolean;
 }
 
-const activeBets = new Map<string, BetEntry>();
+const BETS_FILE = path.join(process.cwd(), "bets.json");
+
+function loadBets(): Map<string, BetEntry> {
+	const map = new Map<string, BetEntry>();
+	if (!fs.existsSync(BETS_FILE)) return map;
+	try {
+		const content = fs.readFileSync(BETS_FILE, "utf-8");
+		if (!content.trim()) return map;
+		const data: BetData[] = JSON.parse(content);
+		for (const d of data) {
+			map.set(d.id, { ...d, bets: new Map(Object.entries(d.bets)) });
+		}
+	} catch (e) {
+		console.error("Failed to load bets:", e);
+	}
+	return map;
+}
+
+function saveBets(bets: Map<string, BetEntry>) {
+	const data: BetData[] = [];
+	for (const [, b] of bets) {
+		data.push({ ...b, bets: Object.fromEntries(b.bets) });
+	}
+	try {
+		const tmp = `${BETS_FILE}.tmp`;
+		fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
+		fs.renameSync(tmp, BETS_FILE);
+	} catch (e) {
+		console.error("Failed to save bets:", e);
+	}
+}
+
+const activeBets = loadBets();
 
 function generateBetId(): string {
 	return Math.random().toString(36).substring(2, 10);
@@ -137,10 +182,12 @@ export const BetRegister: CommandRegister = async (rest: REST, applicationId: st
 				};
 
 				activeBets.set(betId, bet);
+				saveBets(activeBets);
 				await it.reply(createBetMessage(bet));
 
 				const reply = await it.fetchReply();
 				bet.messageId = reply.id;
+				saveBets(activeBets);
 				return;
 			}
 
@@ -192,6 +239,7 @@ export const BetRegister: CommandRegister = async (rest: REST, applicationId: st
 						return;
 					}
 					bet.locked = true;
+					saveBets(activeBets);
 					await it.update(createBetMessage(bet));
 					return;
 				}
@@ -230,6 +278,7 @@ export const BetRegister: CommandRegister = async (rest: REST, applicationId: st
 						content += `手数料: ${fee} Pt (主催者へ)`;
 
 						activeBets.delete(bet.id);
+						saveBets(activeBets);
 						await it.update({ content, components: [] });
 						return;
 					}
@@ -262,6 +311,7 @@ export const BetRegister: CommandRegister = async (rest: REST, applicationId: st
 					content += resultLines.join("\n");
 
 					activeBets.delete(bet.id);
+					saveBets(activeBets);
 					await it.update({ content, components: [] });
 					return;
 				}
@@ -295,6 +345,7 @@ export const BetRegister: CommandRegister = async (rest: REST, applicationId: st
 
 				addPoints(it.user.id, -amount);
 				bet.bets.set(it.user.id, { amount, side });
+				saveBets(activeBets);
 
 				try {
 					const channel = await it.client.channels.fetch(bet.channelId);
