@@ -93,8 +93,11 @@ function createBetMessage(bet: BetEntry): { content: string; components: any[] }
 	const fee = Math.floor(totalPool * 0.05);
 
 	let content = `🎰 **${bet.title}** (主催: <@${bet.creatorId}>)\n\n`;
-	content += `🅰️ **${bet.optionA}**: ${totalA} Pt (${countA}人)\n`;
-	content += `🅱️ **${bet.optionB}**: ${totalB} Pt (${countB}人)\n\n`;
+	const distributable = totalPool - fee;
+	const oddsA = totalA > 0 ? (distributable / totalA).toFixed(2) : "—";
+	const oddsB = totalB > 0 ? (distributable / totalB).toFixed(2) : "—";
+	content += `🅰️ **${bet.optionA}**: ${totalA} Pt (${countA}人) 倍率: x${oddsA}\n`;
+	content += `🅱️ **${bet.optionB}**: ${totalB} Pt (${countB}人) 倍率: x${oddsB}\n\n`;
 	content += `プール合計: ${totalPool} Pt | 手数料: ${fee} Pt (主催者へ)\n`;
 
 	if (bet.locked) {

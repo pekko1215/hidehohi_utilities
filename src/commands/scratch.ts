@@ -124,7 +124,7 @@ function createScratchMessage(symbolIdList: number[], openSymbolIdList: number[]
 		Partial<Scratch[1]>,
 		Partial<Scratch[2]>
 	] = [[], [], []];
-	let scratchMessage = `ねこちゃんズスクラッチくじ (掛金: ${bet}Pt)`;
+	let scratchMessage = `<@${userId}> のねこちゃんズスクラッチくじ (掛金: ${bet}Pt)`;
 	for (let y = 0; y < 3; y++) {
 		const row = new ActionRowBuilder<ButtonBuilder>()
 		rows.push(row);
@@ -137,7 +137,7 @@ function createScratchMessage(symbolIdList: number[], openSymbolIdList: number[]
 			scratch[y][x] = symbol;
 
 			row.addComponents(new ButtonBuilder()
-				.setCustomId(`scratch-${bet}-${symbolIdList.join("")}-${openSymbolIdList.join("")}${idx}-${setting}-${isRare ? 1 : 0}`)
+				.setCustomId(`scratch-${bet}-${symbolIdList.join("")}-${openSymbolIdList.join("")}${idx}-${setting}-${isRare ? 1 : 0}-${userId}`)
 				.setStyle(isOpen ? (symbol === "🤡" ? ButtonStyle.Danger : ButtonStyle.Secondary) : (isRare ? ButtonStyle.Success : ButtonStyle.Primary))
 				.setDisabled(isOpen)
 				.setEmoji(isOpen ? symbol : "⬜"));
@@ -195,6 +195,24 @@ function createScratchMessage(symbolIdList: number[], openSymbolIdList: number[]
 			content: scratchMessage,
 		}
 	} else {
+		if (bet > 0) {
+			const addRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+				new ButtonBuilder()
+					.setCustomId(`scratchadd-100-${bet}-${symbolIdList.join("")}-${openSymbolIdList.join("")}-${setting}-${isRare ? 1 : 0}-${userId}`)
+					.setLabel("+100 Pt")
+					.setStyle(ButtonStyle.Primary),
+				new ButtonBuilder()
+					.setCustomId(`scratchadd-500-${bet}-${symbolIdList.join("")}-${openSymbolIdList.join("")}-${setting}-${isRare ? 1 : 0}-${userId}`)
+					.setLabel("+500 Pt")
+					.setStyle(ButtonStyle.Primary),
+				new ButtonBuilder()
+					.setCustomId(`scratchadd-1000-${bet}-${symbolIdList.join("")}-${openSymbolIdList.join("")}-${setting}-${isRare ? 1 : 0}-${userId}`)
+					.setLabel("+1000 Pt")
+					.setStyle(ButtonStyle.Primary)
+			);
+			rows.push(addRow);
+		}
+
 		return {
 			components: rows,
 			content: scratchMessage
@@ -342,39 +360,67 @@ export const ScratchRegister: CommandRegister = async (rest: REST, applicationId
 					return;
 				}
 
-				const match = it.customId.match(/^scratch-(\d+)-(\d+)-(\d+)-(\d+)(?:-(\d+))?$/)
-				if (!match) return;
-				const [_, betStr, scratchIdStr, opendIdStr, settingStr, isRareStr] = match;
-				const isRare = isRareStr === "1";
-				const bet = parseInt(betStr);
-				const scratchIdList = [...scratchIdStr].map(s => parseInt(s));
-				const openIdList = [...opendIdStr].map(s => parseInt(s));
-				const setting = parseInt(settingStr);
-				
-				// Prevent double-clicking the same button
-				const lastIdx = openIdList[openIdList.length - 1];
-				const previousOpenIds = openIdList.slice(0, -1);
-				if (previousOpenIds.includes(lastIdx)) {
-					await it.deferUpdate();
+				if (it.customId.startsWith("scratchadd-")) {
+					const parts = it.customId.split("-");
+					const addAmount = parseInt(parts[1]);
+					const currentBet = parseInt(parts[2]);
+					const symbolIdList = [...parts[3]].map(s => parseInt(s));
+					const openSymbolIdList = [...parts[4]].map(s => parseInt(s));
+					const setting = parseInt(parts[5]);
+					const isRare = parts[6] === "1";
+					const ownerId = parts[7];
+
+					if (it.user.id !== ownerId) {
+						await it.reply({ content: "自分のスクラッチのみ増額できます。", ephemeral: true });
+						return;
+					}
+
+					const userPoints = getPoints(it.user.id);
+					if (userPoints < addAmount) {
+						await it.reply({ content: `ポイントが足りません！ (所持: ${userPoints} Pt)`, ephemeral: true });
+						return;
+					}
+
+					addPoints(it.user.id, -addAmount);
+					const newBet = currentBet + addAmount;
+
+					const msg = createScratchMessage(symbolIdList, openSymbolIdList, newBet, ownerId, setting, isRare);
+					await it.update({ content: msg.content, components: msg.components as any });
 					return;
 				}
 
-				// If all opened, award points
-				if (openIdList.length === 9 && bet > 0) {
-					const winnings = getWinnings(scratchIdList, bet);
-					if (winnings > 0) {
-						addPoints(it.user.id, winnings);
+				if (it.customId.startsWith("scratch-")) {
+					const parts = it.customId.split("-");
+					const bet = parseInt(parts[1]);
+					const scratchIdList = [...parts[2]].map(s => parseInt(s));
+					const openIdList = [...parts[3]].map(s => parseInt(s));
+					const setting = parseInt(parts[4]);
+					const isRare = parts[5] === "1";
+					const ownerId = parts[6];
+
+					const lastIdx = openIdList[openIdList.length - 1];
+					const previousOpenIds = openIdList.slice(0, -1);
+					if (previousOpenIds.includes(lastIdx)) {
+						await it.deferUpdate();
+						return;
 					}
+
+					if (openIdList.length === 9 && bet > 0) {
+						const winnings = getWinnings(scratchIdList, bet);
+						if (winnings > 0) {
+							addPoints(ownerId, winnings);
+						}
+					}
+
+					const scratchMessage = createScratchMessage(scratchIdList, openIdList, bet, ownerId, setting, isRare);
+
+					await rest.post(Routes.interactionCallback(it.id, it.token), {
+						body: {
+							type: 7,
+							data: scratchMessage
+						}
+					})
 				}
-
-				const scratchMessage = createScratchMessage(scratchIdList, openIdList, bet, it.user.id, setting, isRare);
-
-				await rest.post(Routes.interactionCallback(it.id, it.token), {
-					body: {
-						type: 7,
-						data: scratchMessage
-					}
-				})
 			}
 		},
 		onClient(client) {
