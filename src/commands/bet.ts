@@ -116,6 +116,11 @@ function createBetMessage(bet: BetEntry): { content: string; components: any[] }
 			.setCustomId(`bet-b-${bet.id}`)
 			.setLabel(`${bet.optionB} に賭ける`)
 			.setStyle(ButtonStyle.Secondary)
+			.setDisabled(bet.locked),
+		new ButtonBuilder()
+			.setCustomId(`bet-add-${bet.id}`)
+			.setLabel("増額")
+			.setStyle(ButtonStyle.Primary)
 			.setDisabled(bet.locked)
 	);
 
@@ -213,7 +218,7 @@ export const BetRegister: CommandRegister = async (rest: REST, applicationId: st
 						return;
 					}
 					if (bet.bets.has(it.user.id)) {
-						await it.reply({ content: "既に賭けています。1回のかけにつき1回しか賭けられません。", ephemeral: true });
+						await it.reply({ content: "既に賭けています。「増額」ボタンで掛け金を増やせます。", ephemeral: true });
 						return;
 					}
 
@@ -227,6 +232,32 @@ export const BetRegister: CommandRegister = async (rest: REST, applicationId: st
 					const amountInput = new TextInputBuilder()
 						.setCustomId("bet-amount")
 						.setLabel("賭けるポイント数")
+						.setStyle(TextInputStyle.Short)
+						.setPlaceholder("数値を入力してください")
+						.setRequired(true);
+
+					modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(amountInput));
+					await it.showModal(modal);
+					return;
+				}
+
+				if (action === "add") {
+					if (bet.locked) {
+						await it.reply({ content: "受付は終了しています。", ephemeral: true });
+						return;
+					}
+					if (!bet.bets.has(it.user.id)) {
+						await it.reply({ content: "まだ賭けていません。先に選択肢をクリックして賭けてください。", ephemeral: true });
+						return;
+					}
+
+					const modal = new ModalBuilder()
+						.setCustomId(`bet-modaladd-${betId}`)
+						.setTitle("掛け金を増額する");
+
+					const amountInput = new TextInputBuilder()
+						.setCustomId("bet-addamount")
+						.setLabel("増額するポイント数")
 						.setStyle(TextInputStyle.Short)
 						.setPlaceholder("数値を入力してください")
 						.setRequired(true);
@@ -321,6 +352,48 @@ export const BetRegister: CommandRegister = async (rest: REST, applicationId: st
 			}
 
 			if (it.isModalSubmit()) {
+				if (it.customId.startsWith("bet-modaladd-")) {
+					const betId = it.customId.split("-")[2];
+					const bet = activeBets.get(betId);
+					if (!bet) {
+						await it.reply({ content: "このかけは既に終了しています。", ephemeral: true });
+						return;
+					}
+
+					const addAmountStr = it.fields.getTextInputValue("bet-addamount");
+					const addAmount = parseInt(addAmountStr);
+
+					if (isNaN(addAmount) || addAmount <= 0) {
+						await it.reply({ content: "正しい数値を入力してください。", ephemeral: true });
+						return;
+					}
+
+					const userPoints = getPoints(it.user.id);
+					if (userPoints < addAmount) {
+						await it.reply({ content: `ポイントが足りません！ (所持: ${userPoints} Pt)`, ephemeral: true });
+						return;
+					}
+
+					addPoints(it.user.id, -addAmount);
+					const existing = bet.bets.get(it.user.id)!;
+					existing.amount += addAmount;
+					saveBets(activeBets);
+
+					try {
+						const channel = await it.client.channels.fetch(bet.channelId);
+						if (channel && channel.isTextBased()) {
+							const message = await channel.messages.fetch(bet.messageId);
+							await message.edit(createBetMessage(bet));
+						}
+					} catch (e) {
+						console.error("Failed to update bet message:", e);
+					}
+
+					const sideLabel = existing.side === "a" ? bet.optionA : bet.optionB;
+					await it.reply({ content: `${sideLabel} の掛け金を ${addAmount} Pt 増額しました！(合計: ${existing.amount} Pt)`, ephemeral: true });
+					return;
+				}
+
 				if (!it.customId.startsWith("bet-modal-")) return;
 				const parts = it.customId.split("-");
 				const side = parts[2] as "a" | "b";

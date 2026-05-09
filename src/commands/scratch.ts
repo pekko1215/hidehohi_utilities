@@ -195,24 +195,6 @@ function createScratchMessage(symbolIdList: number[], openSymbolIdList: number[]
 			content: scratchMessage,
 		}
 	} else {
-		if (bet > 0) {
-			const addRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-				new ButtonBuilder()
-					.setCustomId(`scratchadd-100-${bet}-${symbolIdList.join("")}-${openSymbolIdList.join("")}-${setting}-${isRare ? 1 : 0}-${userId}`)
-					.setLabel("+100 Pt")
-					.setStyle(ButtonStyle.Primary),
-				new ButtonBuilder()
-					.setCustomId(`scratchadd-500-${bet}-${symbolIdList.join("")}-${openSymbolIdList.join("")}-${setting}-${isRare ? 1 : 0}-${userId}`)
-					.setLabel("+500 Pt")
-					.setStyle(ButtonStyle.Primary),
-				new ButtonBuilder()
-					.setCustomId(`scratchadd-1000-${bet}-${symbolIdList.join("")}-${openSymbolIdList.join("")}-${setting}-${isRare ? 1 : 0}-${userId}`)
-					.setLabel("+1000 Pt")
-					.setStyle(ButtonStyle.Primary)
-			);
-			rows.push(addRow);
-		}
-
 		return {
 			components: rows,
 			content: scratchMessage
@@ -357,35 +339,6 @@ export const ScratchRegister: CommandRegister = async (rest: REST, applicationId
 					const rawScore = getWinnings(symbolIdList, 0);
 					const isRare = rawScore >= 500 && Math.random() < 1 / 3;
 					await it.reply(createScratchMessage(symbolIdList, [], bet, it.user.id, setting, isRare));
-					return;
-				}
-
-				if (it.customId.startsWith("scratchadd-")) {
-					const parts = it.customId.split("-");
-					const addAmount = parseInt(parts[1]);
-					const currentBet = parseInt(parts[2]);
-					const symbolIdList = [...parts[3]].map(s => parseInt(s));
-					const openSymbolIdList = [...parts[4]].map(s => parseInt(s));
-					const setting = parseInt(parts[5]);
-					const isRare = parts[6] === "1";
-					const ownerId = parts[7];
-
-					if (it.user.id !== ownerId) {
-						await it.reply({ content: "自分のスクラッチのみ増額できます。", ephemeral: true });
-						return;
-					}
-
-					const userPoints = getPoints(it.user.id);
-					if (userPoints < addAmount) {
-						await it.reply({ content: `ポイントが足りません！ (所持: ${userPoints} Pt)`, ephemeral: true });
-						return;
-					}
-
-					addPoints(it.user.id, -addAmount);
-					const newBet = currentBet + addAmount;
-
-					const msg = createScratchMessage(symbolIdList, openSymbolIdList, newBet, ownerId, setting, isRare);
-					await it.update({ content: msg.content, components: msg.components as any });
 					return;
 				}
 
