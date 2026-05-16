@@ -2,7 +2,7 @@ import { REST } from "@discordjs/rest";
 import { SlashCommandBuilder } from "@discordjs/builders";
 import { CommandRegister, CommandHandler } from "../typeings/command";
 import path from "path";
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, Routes } from "discord.js";
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Message, MessageFlags, Routes } from "discord.js";
 import { addPoints, getPoints } from "../utils/points";
 
 const Symbols = ["GOD", "TheKuru", "LEDX", "ascendant1", "twitter", "ornament", "MarshmaoYummy"] as const;
@@ -130,6 +130,71 @@ interface BonusData {
 }
 
 const bonusStates = new Map<string, BonusData>();
+const gridMessageIds = new Map<string, string>();
+
+async function sendSlotMessages(
+	method: "reply" | "update" | "edit",
+	it: any,
+	userId: string,
+	bet: number,
+	phase: Phase,
+	positions: number[],
+	currentPoints: number,
+	pessiBits: number,
+	allPessi: boolean = false,
+	bonus?: BonusData,
+	lastBuffMsg?: string
+) {
+	const contentMsg = createMessage(userId, bet, phase, positions, currentPoints, pessiBits, allPessi, bonus, lastBuffMsg);
+	const gridContent = createGrid(phase, positions, pessiBits, bonus);
+
+	const gridId = gridMessageIds.get(userId);
+	let sentGridId: string | undefined;
+
+	if (method === "reply") {
+		await it.reply(contentMsg);
+		const channel = it.channel;
+		if (channel && channel.isSendable()) {
+			const gridMsg = await channel.send(gridContent);
+			sentGridId = gridMsg.id;
+		}
+	} else if (method === "update") {
+		await it.update(contentMsg);
+		const channel = it.channel;
+		if (channel && channel.isSendable() && gridId) {
+			try {
+				const gridMsg = await channel.messages.fetch(gridId);
+				await gridMsg.edit(gridContent);
+				sentGridId = gridId;
+			} catch {
+				const gridMsg = await channel.send(gridContent);
+				sentGridId = gridMsg.id;
+			}
+		} else if (channel && channel.isSendable()) {
+			const gridMsg = await channel.send(gridContent);
+			sentGridId = gridMsg.id;
+		}
+	} else if (method === "edit") {
+		const message: Message = it;
+		const channel = message.channel;
+		if (channel && channel.isSendable() && gridId) {
+			try {
+				const gridMsg = await channel.messages.fetch(gridId);
+				await gridMsg.edit(gridContent);
+				sentGridId = gridId;
+			} catch {
+				const gridMsg = await channel.send(gridContent);
+				sentGridId = gridMsg.id;
+			}
+		} else if (channel && channel.isSendable()) {
+			const gridMsg = await channel.send(gridContent);
+			sentGridId = gridMsg.id;
+		}
+		await message.edit(contentMsg);
+	}
+
+	if (sentGridId) gridMessageIds.set(userId, sentGridId);
+}
 
 function getSymbol(reel: number, position: number, offset: number): SymbolType {
 	const strip = ReelStrips[reel];
@@ -241,15 +306,15 @@ function applyRainbowBuff(bonus: BonusData): string {
 			bonus.extraReels++;
 			const newTotalReels = 3 + bonus.extraReels;
 			while (bonus.confirmedRowBits.length < newTotalReels) bonus.confirmedRowBits.push(0);
-			msg = "リール数+1！";
+			msg = ":arrow_right: リール数+1！";
 			break;
 		case "frame":
 			bonus.extraRows++;
-			msg = "行数+1！";
+			msg = ":arrow_down: 行数+1！";
 			break;
 		case "game":
 			bonus.gamesLeft++;
-			msg = "ゲーム数+1！";
+			msg = ":up: ゲーム数+1！";
 			break;
 	}
 
@@ -280,11 +345,9 @@ function getPessiRowEmojis(totalRows: number): string[] {
 	return result;
 }
 
-function createMessage(userId: string, bet: number, phase: Phase, positions: number[], currentPoints: number, pessiBits: number, allPessi: boolean = false, bonus?: BonusData, lastBuffMsg?: string): any {
-	const idleEmoji = "❓";
-	const spinEmoji = "🌀";
-	const blankEmoji = "⬛";
-
+function createGrid(phase: Phase, positions: number[], pessiBits: number, bonus?: BonusData): string {
+	const spinEmoji = "⬛";
+	const blankEmoji = "<:mu:1505085852446097418>";
 	const totalReels = bonus ? 3 + bonus.extraReels : 3;
 	const totalRows = bonus ? 3 + bonus.extraRows : 3;
 	const stoppedReels = bonus ? bonus.stoppedReels : 0;
@@ -293,7 +356,11 @@ function createMessage(userId: string, bet: number, phase: Phase, positions: num
 	for (let row = 0; row < totalRows; row++) {
 		grid[row] = [];
 		for (let col = 0; col < totalReels; col++) {
-			grid[row][col] = idleEmoji;
+			if (phase === Phase.IDLE) {
+				grid[row][col] = spinEmoji;
+			} else {
+				grid[row][col] = spinEmoji;
+			}
 		}
 	}
 
@@ -352,9 +419,7 @@ function createMessage(userId: string, bet: number, phase: Phase, positions: num
 			continue;
 		}
 
-		if (phase === Phase.IDLE) {
-			for (let row = 0; row < totalRows; row++) grid[row][col] = idleEmoji;
-		} else if (phase === Phase.SPINNING) {
+		if (phase === Phase.IDLE || phase === Phase.SPINNING) {
 			for (let row = 0; row < totalRows; row++) grid[row][col] = spinEmoji;
 		} else {
 			const revealed = (phase >= Phase.LEFT_STOPPED && col === 0)
@@ -375,25 +440,31 @@ function createMessage(userId: string, bet: number, phase: Phase, positions: num
 		}
 	}
 
-	let content = `<@${userId}> のビデオスロット\n`;
-
-	if (bonus && phase >= Phase.BONUS_IDLE) {
-		content += `所持ポイント: ${currentPoints} Pt | 掛け金: ${bet} Pt | 🌈**ペッシボーナス** 残り${bonus.gamesLeft}G\n\n`;
-	} else {
-		content += `所持ポイント: ${currentPoints} Pt | 掛け金: ${bet} Pt\n`;
-		content += `有効ライン: 5ライン(横3・斜め2)\n\n`;
-	}
-
+	let content = "";
 	for (let row = 0; row < totalRows; row++) {
-		content += `# ${grid[row].join(" │ ")}\n`;
+		content += grid[row].join(" ") + "\n";
 	}
 
 	if (bonus && (phase === Phase.BONUS_SPINNING || phase === Phase.BONUS_STOPPING)) {
 		const indicators: string[] = [];
 		for (let col = 0; col < totalReels; col++) {
-			indicators.push(col === stoppedReels ? "🔻" : "　");
+			indicators.push(col === stoppedReels ? ":small_red_triangle:" : "<:mu:1505085852446097418>");
 		}
-		content += `  ${indicators.join("   ")}\n`;
+		content += indicators.join(" ") + "\n";
+	}
+
+	return content;
+}
+
+function createMessage(userId: string, bet: number, phase: Phase, positions: number[], currentPoints: number, pessiBits: number, allPessi: boolean = false, bonus?: BonusData, lastBuffMsg?: string): any {
+	const totalReels = bonus ? 3 + bonus.extraReels : 3;
+
+	let content = `<@${userId}> のビデオスロット\n`;
+
+	if (bonus && phase >= Phase.BONUS_IDLE) {
+		content += `所持ポイント: ${currentPoints} Pt | 掛け金: ${bet} Pt \n 🌈**ペッシボーナス** 残り${bonus.gamesLeft}G\n`;
+	} else {
+		content += `所持ポイント: ${currentPoints} Pt | 掛け金: ${bet} Pt\n`;
 	}
 
 	if (bonus && phase >= Phase.BONUS_IDLE) {
@@ -410,9 +481,6 @@ function createMessage(userId: string, bet: number, phase: Phase, positions: num
 			}
 			if (hasRainbow) {
 				content += `\n${RainbowEmoji} **レインボーペッシ！！**`;
-			}
-			if (pessiCellCount > 0) {
-				content += `\n${PessiEmoji} ペッシ図柄 ${pessiCellCount}箇所停止！`;
 			}
 			if (lastBuffMsg && lastBuffMsg.length > 0) {
 				content += `\n✨ ${lastBuffMsg}`;
@@ -568,7 +636,7 @@ export const VideoSlotRegister: CommandRegister = async (rest: REST, application
 					return;
 				}
 
-				await it.reply(createMessage(it.user.id, bet, Phase.IDLE, [0, 0, 0], userPoints, 0));
+				await sendSlotMessages("reply", it, it.user.id, bet, Phase.IDLE, [0, 0, 0], userPoints, 0);
 				return;
 			}
 
@@ -622,7 +690,7 @@ export const VideoSlotRegister: CommandRegister = async (rest: REST, application
 					if (action === "spin") {
 						if (phase === Phase.BONUS_GAME_RESULT && bonus && bonus.gamesLeft <= 0) {
 							bonusStates.delete(ownerId);
-							await it.update(createMessage(ownerId, bet, Phase.FINISHED, positions, userPoints, 0, true));
+							await sendSlotMessages("update", it, ownerId, bet, Phase.FINISHED, positions, userPoints, 0, true);
 							return;
 						}
 
@@ -648,7 +716,7 @@ export const VideoSlotRegister: CommandRegister = async (rest: REST, application
 						}
 						bonusStates.set(ownerId, bonus);
 
-						await it.update(createMessage(ownerId, bet, Phase.BONUS_SPINNING, bonus.positions, userPoints, pessiBits, false, bonus));
+						await sendSlotMessages("update", it, ownerId, bet, Phase.BONUS_SPINNING, bonus.positions, userPoints, pessiBits, false, bonus);
 
 					} else if (action === "bstop") {
 						if ((!bonus) || (phase !== Phase.BONUS_SPINNING && phase !== Phase.BONUS_STOPPING)) { await it.deferUpdate(); return; }
@@ -709,9 +777,9 @@ export const VideoSlotRegister: CommandRegister = async (rest: REST, application
 							bonus.confirmedPessi = newConfirmed;
 							bonusStates.set(ownerId, bonus);
 
-							await it.update(createMessage(ownerId, bet, Phase.BONUS_GAME_RESULT, bonus.positions, userPoints, pessiBits, false, bonus, buffMsg));
+							await sendSlotMessages("update", it, ownerId, bet, Phase.BONUS_GAME_RESULT, bonus.positions, userPoints, pessiBits, false, bonus, buffMsg);
 						} else {
-							await it.update(createMessage(ownerId, bet, Phase.BONUS_STOPPING, bonus.positions, userPoints, pessiBits, false, bonus));
+							await sendSlotMessages("update", it, ownerId, bet, Phase.BONUS_STOPPING, bonus.positions, userPoints, pessiBits, false, bonus);
 						}
 					} else {
 						await it.deferUpdate();
@@ -750,7 +818,7 @@ export const VideoSlotRegister: CommandRegister = async (rest: REST, application
 					const lineIdx = yakuResult ? yakuResult.lineIndex : 0;
 					positions = findStopPositions(yaku, lineIdx, pessiBits);
 
-					await it.update(createMessage(ownerId, bet, Phase.SPINNING, positions, userPoints, pessiBits));
+					await sendSlotMessages("update", it, ownerId, bet, Phase.SPINNING, positions, userPoints, pessiBits);
 
 					const channelId = it.channelId;
 					const messageId = it.message.id;
@@ -767,11 +835,11 @@ export const VideoSlotRegister: CommandRegister = async (rest: REST, application
 								const channel = await client.channels.fetch(channelId);
 								if (!channel || !channel.isTextBased()) return;
 								const message = await channel.messages.fetch(messageId);
-								await message.edit(createMessage(userId, bet, Phase.LEFT_STOPPED, positions, userPoints, pessiBits));
+								await sendSlotMessages("edit", message, userId, bet, Phase.LEFT_STOPPED, positions, userPoints, pessiBits);
 
 								setTimeout(async () => {
 									try {
-										await message.edit(createMessage(userId, bet, Phase.MID_STOPPED, positions, userPoints, pessiBits));
+										await sendSlotMessages("edit", message, userId, bet, Phase.MID_STOPPED, positions, userPoints, pessiBits);
 
 										setTimeout(async () => {
 											try {
@@ -782,7 +850,7 @@ export const VideoSlotRegister: CommandRegister = async (rest: REST, application
 												if (totalWin > 0) addPoints(userId, totalWin);
 												const newPoints = userPoints + totalWin;
 												const allPessi = pessiBits === 7;
-												await message.edit(createMessage(userId, bet, Phase.FINISHED, positions, newPoints, pessiBits, allPessi));
+												await sendSlotMessages("edit", message, userId, bet, Phase.FINISHED, positions, newPoints, pessiBits, allPessi);
 
 												if (allPessi) {
 													const bonusData: BonusData = {
@@ -801,7 +869,7 @@ export const VideoSlotRegister: CommandRegister = async (rest: REST, application
 
 													setTimeout(async () => {
 														try {
-															await message.edit(createMessage(userId, bet, Phase.BONUS_IDLE, positions, newPoints, pessiBits, false, bonusData));
+															await sendSlotMessages("edit", message, userId, bet, Phase.BONUS_IDLE, positions, newPoints, pessiBits, false, bonusData);
 														} catch (e) { console.error(e); }
 													}, 2000);
 												}
@@ -817,11 +885,11 @@ export const VideoSlotRegister: CommandRegister = async (rest: REST, application
 								const channel = await client.channels.fetch(channelId);
 								if (!channel || !channel.isTextBased()) return;
 								const message = await channel.messages.fetch(messageId);
-								await message.edit(createMessage(userId, bet, Phase.LEFT_STOPPED, positions, userPoints, pessiBits));
+								await sendSlotMessages("edit", message, userId, bet, Phase.LEFT_STOPPED, positions, userPoints, pessiBits);
 
 								setTimeout(async () => {
 									try {
-										await message.edit(createMessage(userId, bet, Phase.PESSI_REACH, positions, userPoints, pessiBits));
+										await sendSlotMessages("edit", message, userId, bet, Phase.PESSI_REACH, positions, userPoints, pessiBits);
 									} catch (e) { console.error(e); }
 								}, 400);
 							} catch (e) { console.error(e); }
@@ -842,7 +910,7 @@ export const VideoSlotRegister: CommandRegister = async (rest: REST, application
 
 					const allPessi = pessiBits === 7;
 
-					await it.update(createMessage(ownerId, bet, Phase.FINISHED, positions, userPoints, pessiBits, allPessi));
+					await sendSlotMessages("update", it, ownerId, bet, Phase.FINISHED, positions, userPoints, pessiBits, allPessi);
 
 					if (allPessi) {
 						const bonusData: BonusData = {
@@ -868,7 +936,7 @@ export const VideoSlotRegister: CommandRegister = async (rest: REST, application
 								const channel = await client.channels.fetch(channelId);
 								if (!channel || !channel.isTextBased()) return;
 								const message = await channel.messages.fetch(messageId);
-								await message.edit(createMessage(ownerId, bet, Phase.BONUS_IDLE, positions, userPoints, 0, false, bonusData));
+								await sendSlotMessages("edit", message, ownerId, bet, Phase.BONUS_IDLE, positions, userPoints, 0, false, bonusData);
 							} catch (e) { console.error(e); }
 						}, 2000);
 					}
