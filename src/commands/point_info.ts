@@ -28,6 +28,10 @@ const descriptions: { name: string; description: string }[] = [
 	{
 		name: "/bet",
 		description: "2択のかけを作成します。`title`・`option_a`・`option_b`を指定。他のユーザーが賭けに参加でき、主催者は受付終了後に結果を確定。手数料5%がプールから差し引かれ主催者へ付与され、残りが勝者に配当されます。"
+	},
+	{
+		name: "/video_slot",
+		description: "ビデオスロットを回します。`bet`で掛け金を指定。3リール・5ライン(横3・斜め2)。\n絵柄配当(bet倍): GOD x50 / TheKuru x30 / LEDX x15 / ascendant1 x10 / twitter x7 / ornament x4 / MarshmaoYummy x2\n5ラインのいずれかに3揃いで配当獲得。\nペッシ図柄: 左1/16→中1/4→右1/2。3揃いでペッシボーナス(8G)突入。\nボーナス中は各リールSTOPボタンで停止。レインボーペッシ(1/12)でバフ発生。"
 	}
 ];
 

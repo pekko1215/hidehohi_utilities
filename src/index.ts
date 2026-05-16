@@ -13,6 +13,7 @@ import { RankingRegister } from "./commands/ranking";
 import { SendRegister } from "./commands/send";
 import { BetRegister } from "./commands/bet";
 import { PointInfoRegister } from "./commands/point_info";
+import { VideoSlotRegister } from "./commands/video_slot";
 
 DotEnv.config()
 const token = process.env.BOT_TOKEN;
@@ -46,6 +47,7 @@ const CommandRegisters = [
 	SendRegister,
 	BetRegister,
 	PointInfoRegister,
+	VideoSlotRegister,
 ];
 
 const Handlers: CommandHandler[] = [];

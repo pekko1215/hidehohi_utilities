@@ -31,18 +31,26 @@ export const ChannelPointsRegister: CommandRegister = async (rest: REST, applica
 			});
 
 			// Periodic check for users in voice chat: 50 points every 5 minutes
-			setInterval(() => {
-				client.guilds.cache.forEach(guild => {
-					guild.channels.cache.forEach(channel => {
-						if (channel.isVoiceBased()) {
-							channel.members.forEach(member => {
-								if (!member.user.bot) {
-									addPoints(member.id, 50);
+			setInterval(async () => {
+				try {
+					const guilds = await client.guilds.fetch();
+					for (const [, guild] of guilds) {
+						const g = await client.guilds.fetch(guild.id);
+						const channels = await g.channels.fetch();
+						for (const [, channel] of channels) {
+							if (channel && channel.isVoiceBased()) {
+								const vc = channel as import("discord.js").VoiceChannel;
+								for (const [, member] of vc.members) {
+									if (!member.user.bot) {
+										addPoints(member.id, 50);
+									}
 								}
-							});
+							}
 						}
-					});
-				});
+					}
+				} catch (e) {
+					console.error("Failed to check voice channels:", e);
+				}
 			}, 5 * 60 * 1000);
 		}
 	};
