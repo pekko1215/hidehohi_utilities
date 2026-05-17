@@ -352,6 +352,43 @@ function applyRainbowBuff(bonus: BonusData): string {
 	return msg;
 }
 
+function finalizeReels(bonus: BonusData, totalReels: number, totalRows: number): { newConfirmed: boolean[]; buffMsg: string } {
+	const newConfirmed = [...bonus.confirmedPessi];
+	for (let col = 0; col < totalReels; col++) {
+		const hasPessi = bonus.pessiRowBits[col].some(Boolean) || bonus.rainbowRowBits[col].some(Boolean);
+		if (hasPessi) {
+			newConfirmed[col] = true;
+			for (let row = 0; row < totalRows; row++) {
+				if (bonus.pessiRowBits[col][row] || bonus.rainbowRowBits[col][row]) {
+					bonus.confirmedRowBits[col][row] = true;
+				}
+			}
+		}
+	}
+
+	let hasRainbow = false;
+	let rainbowCount = 0;
+	for (let col = 0; col < totalReels; col++) {
+		if (bonus.rainbowRowBits[col].some(Boolean)) hasRainbow = true;
+		rainbowCount += bonus.rainbowRowBits[col].filter(Boolean).length;
+	}
+
+	let buffMsg = "";
+	if (rainbowCount > 0) {
+		if (bonus.gamesLeft <= 0) {
+			bonus.gamesLeft++;
+			buffMsg += "🎮 ゲーム数+1！";
+		} else {
+			buffMsg += applyRainbowBuff(bonus);
+		}
+		for (let i = 1; i < rainbowCount; i++) {
+			buffMsg += "\n" + applyRainbowBuff(bonus);
+		}
+	}
+
+	return { newConfirmed, buffMsg };
+}
+
 function buildPessiDisplay(confirmedPessi: boolean[]): string[] {
 	const pessiCount = countPessiReels(confirmedPessi);
 
@@ -368,21 +405,10 @@ function buildPessiDisplay(confirmedPessi: boolean[]): string[] {
 }
 
 function buildPessiChainLines(confirmedRowBits: boolean[][]): string[] {
-	const blankEmoji = "<:mu:1505085852446097418>";
-	const lines: string[] = [];
+	const chainCounts = new Map<number, number>();
 
-	for (let col = 0; col < confirmedRowBits.length; col++) {
-		const reel = confirmedRowBits[col];
-		const hasPessi = reel.some(Boolean);
-		if (!hasPessi) {
-			lines.push(`リール${col + 1}: ${blankEmoji}`);
-			continue;
-		}
-
-		const parts: string[] = [];
-		const chainMultipliers: number[] = [];
+	for (const reel of confirmedRowBits) {
 		let chainStart = -1;
-
 		for (let row = 0; row <= reel.length; row++) {
 			const isPessi = row < reel.length && reel[row];
 			if (isPessi) {
@@ -390,22 +416,24 @@ function buildPessiChainLines(confirmedRowBits: boolean[][]): string[] {
 			} else {
 				if (chainStart !== -1) {
 					const chainLen = row - chainStart;
-					if (chainLen === 1) {
-						parts.push(PessiEmoji);
-					} else {
-						const emojis = getPessiRowEmojis(chainLen);
-						parts.push(...emojis);
-					}
-					parts.push(`(${chainLen}連 x${getChainMultiplier(chainLen)})`);
-					chainMultipliers.push(getChainMultiplier(chainLen));
+					chainCounts.set(chainLen, (chainCounts.get(chainLen) || 0) + 1);
 					chainStart = -1;
 				}
-				if (row < reel.length) parts.push(blankEmoji);
 			}
 		}
+	}
 
-		const totalMultiplier = chainMultipliers.reduce((a, b) => a + b, 0);
-		lines.push(`リール${col + 1}: ${parts.join(" ")} → x${totalMultiplier}`);
+	const lines: string[] = [];
+	const sorted = [...chainCounts.entries()].sort((a, b) => a[0] - b[0]);
+	let totalMultiplier = 0;
+
+	for (const [chainLen, count] of sorted) {
+		const mul = getChainMultiplier(chainLen);
+		const subTotal = mul * count;
+		totalMultiplier += subTotal;
+		const emojis = chainLen === 1 ? PessiEmoji : getPessiRowEmojis(chainLen).join("");
+		const countStr = count > 1 ? ` ×${count}` : "";
+		lines.push(`${emojis} ${chainLen}連${countStr} → x${subTotal}`);
 	}
 
 	return lines;
@@ -777,7 +805,7 @@ export const VideoSlotRegister: CommandRegister = async (rest: REST, application
 					if (action === "spin") {
 						if (phase === Phase.BONUS_GAME_RESULT && bonus && bonus.gamesLeft <= 0) {
 							bonusStates.delete(ownerId);
-							await sendSlotMessages("update", it, ownerId, bet, Phase.FINISHED, positions, userPoints, 0, true);
+							await sendSlotMessages("update", it, ownerId, bet, Phase.FINISHED, positions, userPoints, 0);
 							return;
 						}
 
@@ -794,80 +822,79 @@ export const VideoSlotRegister: CommandRegister = async (rest: REST, application
 						bonus.gamesLeft--;
 						bonus.stoppedReels = 0;
 						const totalReels = 3 + bonus.extraReels;
-						bonus.pessiRowBits = Array.from({ length: totalReels }, () => new Array(3 + bonus.extraRows).fill(false));
-						bonus.rainbowRowBits = Array.from({ length: totalReels }, () => new Array(3 + bonus.extraRows).fill(false));
-						while (bonus.confirmedRowBits.length < totalReels) bonus.confirmedRowBits.push(new Array(3 + bonus.extraRows).fill(false));
+						const totalRows = 3 + bonus.extraRows;
+						bonus.pessiRowBits = Array.from({ length: totalReels }, () => new Array(totalRows).fill(false));
+						bonus.rainbowRowBits = Array.from({ length: totalReels }, () => new Array(totalRows).fill(false));
+						while (bonus.confirmedRowBits.length < totalReels) bonus.confirmedRowBits.push(new Array(totalRows).fill(false));
 						bonus.positions = [];
 						for (let i = 0; i < totalReels; i++) {
 							bonus.positions.push(Math.floor(Math.random() * ReelStrips[i % 3].length));
 						}
 						bonusStates.set(ownerId, bonus);
 
+						const allConfirmed = bonus.confirmedRowBits.every(reel => reel.every(Boolean));
+						if (allConfirmed) {
+							const multiplier = calculateBonusMultiplier(bonus.confirmedRowBits);
+							const payout = bet * multiplier;
+							addPoints(ownerId, payout);
+							const newPoints = userPoints + payout;
+							bonusStates.delete(ownerId);
+							await sendSlotMessages("update", it, ownerId, bet, Phase.FINISHED, bonus.positions, newPoints, 0, true);
+							return;
+						}
+
 						await sendSlotMessages("update", it, ownerId, bet, Phase.BONUS_SPINNING, bonus.positions, userPoints, pessiBits, false, bonus);
 
 					} else if (action === "bstop") {
 						if ((!bonus) || (phase !== Phase.BONUS_SPINNING && phase !== Phase.BONUS_STOPPING)) { await it.deferUpdate(); return; }
 
-						const reelIndex = bonus.stoppedReels;
 						const totalReels = 3 + bonus.extraReels;
 						const totalRows = 3 + bonus.extraRows;
 
-						if (reelIndex >= totalReels) { await it.deferUpdate(); return; }
-
-						for (let row = 0; row < totalRows; row++) {
-							if (bonus.confirmedRowBits[reelIndex][row]) continue;
-							const r = Math.random();
-							if (r < 1 / 12) {
-								bonus.rainbowRowBits[reelIndex][row] = true;
-								bonus.pessiRowBits[reelIndex][row] = true;
-							} else if (r < 1 / 12 + 1 / 8) {
-								bonus.pessiRowBits[reelIndex][row] = true;
-							}
+						while (bonus.stoppedReels < totalReels && bonus.confirmedRowBits.length > bonus.stoppedReels && bonus.confirmedRowBits[bonus.stoppedReels].every(Boolean)) {
+							bonus.stoppedReels++;
 						}
 
-						bonus.stoppedReels = reelIndex + 1;
-						bonusStates.set(ownerId, bonus);
-
 						if (bonus.stoppedReels >= totalReels) {
-							const newConfirmed = [...bonus.confirmedPessi];
-							for (let col = 0; col < totalReels; col++) {
-								const hasPessi = bonus.pessiRowBits[col].some(Boolean) || bonus.rainbowRowBits[col].some(Boolean);
-								if (hasPessi) {
-									newConfirmed[col] = true;
-									for (let row = 0; row < totalRows; row++) {
-										if (bonus.pessiRowBits[col][row] || bonus.rainbowRowBits[col][row]) {
-											bonus.confirmedRowBits[col][row] = true;
-										}
-									}
-								}
-							}
-
-							let hasRainbow = false;
-							let rainbowCount = 0;
-							for (let col = 0; col < totalReels; col++) {
-								if (bonus.rainbowRowBits[col].some(Boolean)) hasRainbow = true;
-								rainbowCount += bonus.rainbowRowBits[col].filter(Boolean).length;
-							}
-
-							let buffMsg = "";
-							if (rainbowCount > 0) {
-								if (bonus.gamesLeft <= 0) {
-									bonus.gamesLeft++;
-									buffMsg += "🎮 ゲーム数+1！";
-								} else {
-									buffMsg += applyRainbowBuff(bonus);
-								}
-								for (let i = 1; i < rainbowCount; i++) {
-									buffMsg += "\n" + applyRainbowBuff(bonus);
-								}
-							}
-
+							const { newConfirmed, buffMsg } = finalizeReels(bonus, totalReels, totalRows);
 							bonus.confirmedPessi = newConfirmed;
 							bonusStates.set(ownerId, bonus);
 
 							await sendSlotMessages("update", it, ownerId, bet, Phase.BONUS_GAME_RESULT, bonus.positions, userPoints, pessiBits, false, bonus, buffMsg);
 						} else {
-							await sendSlotMessages("update", it, ownerId, bet, Phase.BONUS_STOPPING, bonus.positions, userPoints, pessiBits, false, bonus);
+							const reelIndex = bonus.stoppedReels;
+
+							while (bonus.confirmedRowBits.length <= reelIndex) bonus.confirmedRowBits.push(new Array(totalRows).fill(false));
+							while (bonus.pessiRowBits.length <= reelIndex) bonus.pessiRowBits.push(new Array(totalRows).fill(false));
+							while (bonus.rainbowRowBits.length <= reelIndex) bonus.rainbowRowBits.push(new Array(totalRows).fill(false));
+
+							for (let row = 0; row < totalRows; row++) {
+								if (bonus.confirmedRowBits[reelIndex][row]) continue;
+								const r = Math.random();
+								if (r < 1 / 12) {
+									bonus.rainbowRowBits[reelIndex][row] = true;
+									bonus.pessiRowBits[reelIndex][row] = true;
+								} else if (r < 1 / 14 + 1 / 8) {
+									bonus.pessiRowBits[reelIndex][row] = true;
+								}
+							}
+
+							bonus.stoppedReels = reelIndex + 1;
+							bonusStates.set(ownerId, bonus);
+
+while (bonus.stoppedReels < totalReels && bonus.confirmedRowBits.length > bonus.stoppedReels && bonus.confirmedRowBits[bonus.stoppedReels].every(Boolean)) {
+								bonus.stoppedReels++;
+							}
+
+							if (bonus.stoppedReels >= totalReels) {
+								const { newConfirmed, buffMsg } = finalizeReels(bonus, totalReels, totalRows);
+								bonus.confirmedPessi = newConfirmed;
+								bonusStates.set(ownerId, bonus);
+
+								await sendSlotMessages("update", it, ownerId, bet, Phase.BONUS_GAME_RESULT, bonus.positions, userPoints, pessiBits, false, bonus, buffMsg);
+							} else {
+								await sendSlotMessages("update", it, ownerId, bet, Phase.BONUS_STOPPING, bonus.positions, userPoints, pessiBits, false, bonus);
+							}
 						}
 					} else {
 						await it.deferUpdate();
@@ -964,6 +991,10 @@ export const VideoSlotRegister: CommandRegister = async (rest: REST, application
 				} else if (action === "stop") {
 					if (phase !== Phase.PESSI_REACH) { await it.deferUpdate(); return; }
 
+					if (Math.random() < 1 / 2) {
+						pessiBits |= 4;
+					}
+
 					const hits = checkLines(positions, pessiBits);
 					const pessiCount = countSetBits(pessiBits);
 
@@ -980,7 +1011,7 @@ export const VideoSlotRegister: CommandRegister = async (rest: REST, application
 					if (allPessi) {
 						const bonusData: BonusData = {
 							bet,
-							gamesLeft: 3,
+							gamesLeft: 5,
 							confirmedPessi: [false, false, false],
 							positions,
 							pessiRowBits: [[false, false, false], [false, false, false], [false, false, false]],
